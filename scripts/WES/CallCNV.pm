@@ -709,6 +709,8 @@ sub getCiposCiend {
   my @tmpStr  = split (/\t/, $str);
   my @samples = @tmpStr[5..@tmpStr-1];
   
+  my $cmd;
+
   # Emptying reference id file
   foreach my $sample ( sort keys %::sampleHash ) {
 	@{$::sampleHash{$sample}{REF_ID}} = ();
@@ -746,6 +748,11 @@ sub getCiposCiend {
 
     my $test_sample = basename($file);
 	$test_sample =~s/.single_calls.bed//;
+
+	my $toMergeSegs          = "$outputDir/TMP.tomerge.segments.$test_sample.bed";
+	my $mergedAdjacentRois   = "$outputDir/cnv_calls.merged.$test_sample.bed";
+	my $mergedSingleSegments = "$outputDir/merged.single_and_segments.$test_sample.bed";
+	my $mergedCnvBreakpoints = "$outputDir/Breaks_and_CNV.$test_sample.bed"; 
 
 	my %seen = ();
 	open (IN, "<", $file) || die " ERROR: Cannot open $file\n";
@@ -819,7 +826,6 @@ sub getCiposCiend {
 			}
 		}
 
-
 		# Check mean signal-2-noise of control samples
 		my ($testSampleRatio, $s2nTest) = Utils::signal2noise(@arrOfTest);
 		my $sd   = Utils::std(@arrOfCont);
@@ -839,27 +845,23 @@ sub getCiposCiend {
 		# Check mean ratio of test sample
 		my $tmpZscore = $zscore < 0 ? $zscore*-1 : $zscore;
 
-#		print " INFO: $test_sample\t$pattern\t$testSampleRatio\t$zscore\t$tmpZscore\t$::sampleHash{$test_sample}{LOWER_LIMIT}\t$::sampleHash{$test_sample}{UPPER_LIMIT}\t$s2nTest\t$s2nControls\n";
-
-		if (-e "$outputDir/cnv_calls.merged.$test_sample.bed" ) {
-			my $cmd = "$::cat $outputDir/cnv_calls.merged.$test_sample.bed > $outputDir/TMP.tomerge.segments.$test_sample.bed";
-			system $cmd;
-		}
-
-		# cnv_calls.merged contains segmented CNVs and single-exon CNVs
-		open (TMP, ">>", "$outputDir/TMP.tomerge.segments.$test_sample.bed") 
-			|| die " ERROR: Cannot open $outputDir/TMP.tomerge.segments.$test_sample.bed\n";
-		open (BED, ">>", "$outputDir/cnv_calls.merged.$test_sample.bed") 
-			|| die " ERROR: Cannot open $outputDir/cnv_calls.merged.$test_sample.bed\n";
-
-		my $do_output = 0;
-
 		if ($::verbose) {
 			print "$pattern=>s2nTest($s2nTest)\ts2nControls($s2nControls)\tZ-score($tmpZscore)\n";
 		}
 
+		if (-e $mergedAdjacentRois ) {
+			$cmd = "$::cat $mergedAdjacentRois > $toMergeSegs";
+			system $cmd;
+		}
+
+		# cnv_calls.merged contains segmented CNVs and single-exon CNVs
+		open (TMP, ">>", $toMergeSegs) || die " ERROR: Cannot open $toMergeSegs\n";
+		open (BED, ">>", $mergedAdjacentRois) || die " ERROR: Cannot open $mergedAdjacentRois\n";
+		
+		# Check if single CNV has enough quality to be reported as a candidate
+		my $do_output = 0;
 		if ($s2nControls > 8 && $s2nTest > 9 && abs($tmpZscore) >= $::minZscore &&
-		 ($testSampleRatio < $::sampleHash{$test_sample}{LOWER_LIMIT} ||
+		   ($testSampleRatio < $::sampleHash{$test_sample}{LOWER_LIMIT} ||
 		   $testSampleRatio > $::sampleHash{$test_sample}{UPPER_LIMIT})){
 
 			my $cnv_type;
@@ -867,89 +869,84 @@ sub getCiposCiend {
 				$cnv_type = "DEL";
 				$do_output = 1;
 			}
-			if ($testSampleRatio >= 0.00 && $testSampleRatio < 0.12) {
+			elsif ($testSampleRatio >= 0.00 && $testSampleRatio < 0.12) {
 				$cnv_type = "DEL";
 				$do_output = 1;
 			}
-			if ($testSampleRatio > $::lowerDupCutoff) {
+			elsif ($testSampleRatio > $::lowerDupCutoff) {
 				$cnv_type = "DUP";
 				$do_output = 1;
 			}
-			$do_output = 1;
-			# Checking if breakpoint is present
-			if ($do_output) {
-
-				if ($::plotSingleExon) {
-
-					print " INFO: Plotting $pattern on sample $test_sample\n";
-					my $baseRatios = 
-						"$outputDir/$test_sample.$tmp[0].$tmp[1].$tmp[2].ratios.bed";
-
-					# Writing ratios to an output file
-					open (BASERATIOS, ">", $baseRatios) 
-					|| die " ERROR: Cannot open $baseRatios\n";
-					foreach my $line (@matrix) {
-						chomp $line;
-						print BASERATIOS "$line\n";
-					}
-					close BASERATIOS;
-
-					Utils::loadSingleExon2Json($baseRatios, $coordinates, $test_sample);
-
-					# Plotting single exon CNV
-					#Plot::plotSingleExon2($outputDir, $baseRatios, $pattern, $test_sample );
-					#Plot::plotSingleExon($outputDir, $baseRatios, $pattern, $test_sample );
-
-					move $baseRatios, "$outputDir/PLOT_DATA/";
-					Utils::compressFile($baseRatios);
-				}
-
-				# Dumping results to BED
-				my $genename = $tmp[3];
-				$genename =~s/;/,/;
-
-				my $GC  = int ($::ExonFeatures{"$tmp[0]\t$tmp[1]\t$tmp[2]"}{GC});
-				my $MAP = int ($::ExonFeatures{"$tmp[0]\t$tmp[1]\t$tmp[2]"}{MAP});
-
-				my ($cipos, $ciend) = getCiposCiend($tmp[0], $tmp[1], $tmp[2], \@::ROIarray);
-
-				print TMP "$tmp[0]\t$tmp[1]\t$tmp[2]\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnv_type;SVLEN=$size;GENE=$genename;GC=$GC;MAP=$MAP;REGIONS=1;RRD=$testSampleRatio;MADRD=$MAD;SNR=$s2nTest;S2N_CONTROLS=$s2nControls;ZSCORE=$zscore\n";
-				print BED "$tmp[0]\t$tmp[1]\t$tmp[2]\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnv_type;SVLEN=$size;GENE=$genename;GC=$GC;MAP=$MAP;REGIONS=1;RRD=$testSampleRatio;MADRD=$MAD;SNR=$s2nTest;S2N_CONTROLS=$s2nControls;ZSCORE=$zscore\n";
+			else {
+				next;
 			}
-			$do_output = 0;
 		}
+		if ($do_output) {
+
+			print " INFO: Plotting $pattern on sample $test_sample\n";
+			my $baseRatios = 
+				"$outputDir/$test_sample.$tmp[0].$tmp[1].$tmp[2].ratios.bed";
+
+			# Writing ratios to an output file
+			open (BASERATIOS, ">", $baseRatios) || die " ERROR: Cannot open $baseRatios\n";
+			foreach my $line (@matrix) {
+				chomp $line;
+				print BASERATIOS "$line\n";
+			}
+			close BASERATIOS;
+			
+			# Load ratios to Json
+			Utils::loadSingleExon2Json($baseRatios, $coordinates, $test_sample);
+			if ($::plotSingleExon) {
+
+				# Plotting single exon CNV
+				Plot::plotSingleExon2($outputDir, $baseRatios, $pattern, $test_sample );
+
+				#Plot::plotSingleExon($outputDir, $baseRatios, $pattern, $test_sample );
+				move $baseRatios, "$outputDir/PLOT_DATA/";
+				Utils::compressFile($baseRatios);
+			}
+
+			# Dumping results to BED
+			my $genename = $tmp[3];
+			$genename =~s/;/,/;
+
+			# Get GC and Mappability
+			my $GC  = int ($::ExonFeatures{"$tmp[0]\t$tmp[1]\t$tmp[2]"}{GC});
+			my $MAP = int ($::ExonFeatures{"$tmp[0]\t$tmp[1]\t$tmp[2]"}{MAP});
+
+			# Calculate confidence interval for imprecise events
+			my ($cipos, $ciend) = getCiposCiend($tmp[0], $tmp[1], $tmp[2], \@::ROIarray);
+
+			print TMP "$tmp[0]\t$tmp[1]\t$tmp[2]\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnv_type;SVLEN=$size;GENE=$genename;GC=$GC;MAP=$MAP;REGIONS=1;RRD=$testSampleRatio;MADRD=$MAD;SNR=$s2nTest;S2N_CONTROLS=$s2nControls;ZSCORE=$zscore\n";
+			print BED "$tmp[0]\t$tmp[1]\t$tmp[2]\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnv_type;SVLEN=$size;GENE=$genename;GC=$GC;MAP=$MAP;REGIONS=1;RRD=$testSampleRatio;MADRD=$MAD;SNR=$s2nTest;S2N_CONTROLS=$s2nControls;ZSCORE=$zscore\n";
+		}
+	
 		close BED;
 		close TMP;
 		@matrix = ();
 	}
+	close IN;
 
-	# Merge adjacent single-exon CNV calls
-	my $cmd;
-	my $merged_file = "$outputDir/cnv_calls.merged.$test_sample.bed";
+	if (-e $toMergeSegs) {
 
-	if (-e "$outputDir/TMP.tomerge.segments.$test_sample.bed") {
-
-		$cmd = "perl $::mergeSegments $outputDir/TMP.tomerge.segments.$test_sample.bed $::bed > $outputDir/merged.single_and_segments.$test_sample.bed";
+		$cmd = "perl $::mergeSegments $toMergeSegs $::bed > $mergedSingleSegments";
 		system $cmd;
 
 		# Catching additional segments that were not properly segmented before
-		writePlotDataFromSegments("$outputDir/merged.single_and_segments.$test_sample.bed", $test_sample, $outputDir);
+		writePlotDataFromSegments($mergedSingleSegments, $test_sample, $outputDir);
 
-		$merged_file = "$outputDir/merged.single_and_segments.$test_sample.bed";
-		unlink ("$outputDir/TMP.tomerge.segments.$test_sample.bed");
+		$mergedAdjacentRois = $mergedSingleSegments;
+		unlink ($toMergeSegs);
 	}
-	my $outputForCnvBreaks = "$outputDir/Breaks_and_CNV.$test_sample.bed"; 
 
 	# Merge CNV and Breakpoint predictions if they point to the same variant
-	$cmd = "perl $::mergeCnvBreaks $outputDir/$test_sample/$test_sample.breakpoints.bed $merged_file | $::sort -V | $::uniq > $outputForCnvBreaks";
-    system $cmd;
+	$cmd = "perl $::mergeCnvBreaks $outputDir/$test_sample/$test_sample.breakpoints.bed $mergedAdjacentRois | $::sort -V | $::uniq > $mergedCnvBreakpoints";
+	system $cmd;
 	print "$cmd\n" if $::verbose;
 
-	unlink ("$outputDir/merged.single_and_segments.$test_sample.bed");
-
-	#$::pm->finish;
-  }
-  #$::pm->wait_all_children;
+	unlink ($mergedSingleSegments);
+ }
 
  #unlink("$outputDir/$::outName.norm_bylib_coverage_noheader.bed");
  Utils::compressFile($ungzRatioFile);

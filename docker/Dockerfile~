@@ -21,7 +21,9 @@ RUN apt-get update && apt-get install -y \
     python-pip \
     cpanminus \
     r-base r-base-core r-recommended \
-    samtools 
+    samtools \
+    tabix \
+    bgzip
     #bedtools
 
 RUN apt-get -y install wget
@@ -33,6 +35,7 @@ RUN apt-get -y install python-numpy
 RUN cpanm Parallel::ForkManager \
     Statistics::Descriptive \
     Sort::Key::Natural \
+    Chart::Gnuplot \
 
 #RUN pip install --upgrade pip
 #RUN pip install numpy

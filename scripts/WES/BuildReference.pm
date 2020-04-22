@@ -16,11 +16,6 @@ use Statistics::Descriptive;
   my %nodes = ();
   my %seen  = ();
   
-
-	foreach my $mostra (natsort keys %::sampleHash) {
-		print "$mostra\n";
-	}
-	exit;
   open (IN, "<", $::HoF{CORRELATIONS_ON}) || die " ERROR: Cannot open $::HoF{CORRELATIONS_ON}\n";
   my $count = 0;
   my @samples = ();

@@ -21,7 +21,10 @@ RUN apt-get update && apt-get install -y \
     python-pip \
     cpanminus \
     r-base r-base-core r-recommended \
-    samtools 
+    samtools \
+    tabix \
+    bgzip \
+    gnuplot \
     #bedtools
 
 RUN apt-get -y install wget

@@ -493,8 +493,9 @@ $minZscore  = 2.58 if !$minZscore;
    $createReport    = 1;
    $doVAF           = 0;
    $doFilter        = 1;
-   $doAnnotate      = 0;
+   $doAnnotate      = 1;
    $plotSingleExon  = 1;
+   $filterDiscordantOnly = 1;
  }
 
  if ($doVAF) {

@@ -7,7 +7,11 @@ use Cwd;
 use Term::ANSIColor qw(:constants);
 use Parallel::ForkManager;
 use Statistics::Descriptive;
+use Chart::Gnuplot;
+use JSON::MaybeXS;
+use Data::Dumper;
 use Config;
+use DBI;
 
 my $make  = `which make`;
 chomp $make;
