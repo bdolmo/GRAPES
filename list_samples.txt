@@ -1,0 +1,5 @@
+/home/user/dir/sample1.bam
+/home/user/dir/sample2.bam
+/home/user/dir/sample3.bam
+/home/user/dir/sample4.bam
+/home/user/dir/sample5.bam

@@ -1,0 +1,6 @@
+bin/grapes_sv/* linguist-vendored
+bin/SeqLib/* linguist-vendored
+bin/htslib/* linguist-vendored
+*.pm linguist-language=Perl
+bin/TargetDepth* linguist-vendored
+bin/offtarget/* linguist-vendored

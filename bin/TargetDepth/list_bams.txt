@@ -1,0 +1,4 @@
+/home/bernat/Escritorio/20171204_RUN20171204/RB21233.bam
+/home/bernat/Escritorio/20171204_RUN20171204/RB21241.bam
+/home/bernat/Escritorio/20171204_RUN20171204/RB21288.bam
+/home/bernat/Escritorio/20171204_RUN20171204/RB21289.bam

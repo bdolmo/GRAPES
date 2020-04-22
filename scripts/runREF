@@ -1,0 +1,492 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Basename;
+use Parallel::ForkManager;
+use Cwd;
+use Getopt::Long;
+use Config;
+our $dirname = dirname (__FILE__);
+use Term::ANSIColor qw(:constants);
+use lib (dirname (__FILE__));
+use WES::ROIvalidator;
+use WES::Plot;
+use WES::Extract;
+use WES::BuildReference;
+use WES::Normalize;
+use Misc::Utils;
+
+
+# TargetDepth is a tool for extracting coverage, gc and insert sizes
+our $targetDepth = "$dirname/../bin/TargetDepth/targetDepth.pl";
+our $getMapOfftarget = "$dirname/offtargetMap.pl";
+our $getMapOntarget  = "$dirname/ontargetMap.pl";
+our $bamDir;
+our $normalizedDir;
+our $outDir;
+our $genome;
+our $bed;
+our $plotClusters;
+
+# Extracts (if not performed already) read-depth information and builds references of samples
+our $cut  = `which cut`;
+chomp $cut;
+if (!$cut) {
+	print "ERROR: cut command not found\n";
+	exit;
+}
+
+our $cat  = `which cat`;
+chomp $cat;
+if (!$cat) {
+	print "ERROR: cat command not found\n";
+		exit;
+}
+
+our $wc  = `which wc`;
+chomp $wc;
+if (!$wc) {
+	print "ERROR: wc command not found\n";
+	exit;
+}
+
+our $awk  = `which awk`;
+chomp $awk;
+if (!$awk) {
+	print "ERROR: awk command not found\n";
+	exit;	
+}
+
+our $sed  = `which sed`;
+chomp $sed;
+if (!$sed) {
+	print "ERROR: sed command not found\n";
+	exit;
+}
+
+our $paste  = `which paste`;
+chomp $paste;
+if (!$paste) {
+	print "ERROR: paste command not found\n";
+	exit;
+}
+
+our $head  = `which head`;
+chomp $head;
+if (!$head) {
+	print "ERROR: head command not found\n";
+	exit;
+}
+
+our $uniq  = `which uniq`;
+chomp $uniq;
+if (!$uniq) {
+	print "ERROR: uniq command not found\n";
+	exit;
+}
+ 
+our $mv  = `which mv`;
+chomp $mv;
+if (!$mv) {
+	print "ERROR: mv command not found\n";
+	exit;
+}
+
+our $tail  = `which tail`;
+chomp $tail;
+if (!$tail) {
+	print "ERROR: mv command not found\n";
+	exit;
+}
+
+our $grep;
+our $sort;
+if ($Config{osname} =~/darwin/) {
+ $grep = `which egrep`; chomp $grep;
+ $sort = `which gsort`; chomp $sort;
+}
+else {
+ $grep = `which grep`; chomp $grep;
+ $sort = `which sort`; chomp $sort;
+}
+
+if (!$grep) {
+	print " ERROR: grep command was not found\n";
+	exit;
+}
+if (!$sort) {
+	print " ERROR: sort command was not found\n";
+	exit;
+}
+
+our $Rscript  = `which Rscript`;
+chomp $Rscript;
+
+if (!$Rscript) {
+    print " ERROR: Rscript was not found on PATH\n"; exit;
+}
+
+our $bedtools = `which bedtools`;
+chomp $bedtools;
+
+if (!$bedtools) {
+    print " ERROR: BEDtools was not found on PATH\n";
+	exit;
+}
+else {
+    my $bedtools_version = `$bedtools --version | $cut -d \" \" -f 2 | $awk '{ split (\$0, a, \".\");  print a[2] }'`;
+    chomp $bedtools_version;
+	if ($bedtools_version < 19) { 
+    	print " ERROR: BEDtools version $bedtools_version is too old. Please, consider installing the newest version\n"; exit;
+    }
+}
+our $devNull         = ">/dev/null 2>&1";
+our $devNullStderr   = "2> /dev/null";
+
+our $samtools = `which samtools`;
+chomp $samtools;
+
+if (!$samtools) {
+	print " ERROR: samtools was not found on PATH\n"; 
+    exit;
+}
+# GC as keys with median depth data as values
+our %GC = ();
+our @bams;
+our %ChromosomeLengths = ();
+
+# Coordinates, GC
+our %ExonFeatures = ();
+
+# Saving Intron lengths, gc and mappability
+our %IntronFeatures = ();
+
+# Here we will display sample name as key, 
+our %sampleHash = ();
+
+# Here we will save exon coordinate as key. Secondary keys will be SAMPLE, GC, MAP
+our %ontargetHash = ();
+
+our $threads = 1;
+my $doExtraction   = "";
+my $doMerge    = "";
+our $chrFile;
+our $outName;
+
+# Displaying usage panel
+Help () if (@ARGV<1 or !GetOptions(
+	'extract' =>\$doExtraction,
+	'merge' =>\$doMerge,
+	'i=s' =>\$bamDir,
+    'n=s' =>\$normalizedDir,
+    'o=s' =>\$outDir,
+	'g=s' =>\$genome,
+	'b=s' =>\$bed,	
+	't=i' =>\$threads,
+    'plotClusters' =>\$plotClusters
+	)
+);
+
+my $cmd;
+ if (!$outDir) {
+	print " \nERROR: output directory was not specified\n";
+	Help();
+	exit;
+ }
+ if (!-e $outDir) {
+	mkdir $outDir;
+ }
+ if (!$bed) {
+	print " ERROR: a BED file is required\n";
+	Help();
+	exit;
+ }
+ if (!$genome) {
+	print " ERROR: missing genome file (-g)\n";
+	Help();
+	exit;
+ }
+
+$outName = basename ($outDir);
+
+ ###################
+ #	Fetching BAMS  #
+ ###################
+
+if ($doExtraction) {
+ #our @bams;
+ my @multiple;
+ if ($bamDir)  {
+	 if ( -d $bamDir ) {
+		@bams = glob ("$bamDir/*.bam");
+		if (!@bams) {
+			print " ERROR: no input bams were introduced\n";
+			exit;
+		}
+	 }
+	 # If multiple BAMs on command line
+	 my @multiple = split (",", $bamDir);
+	 if (@multiple > 1) {
+		@bams = @multiple;	
+	 }
+	 # If input is a list of bams
+	 if ( -f $bamDir ) {
+		open (IN, "<$bamDir") || die " ERROR: Cannot open $bamDir\n";	
+		while (my $line=<IN>) {
+			chomp $line;
+			my @tmp = split (/\t/, $line);
+			if (@tmp > 1) {
+				print "\nERROR: $bamDir file list must contain a single sample PATH per line\n";
+				exit;
+			}
+			push @bams, $line;
+		}
+		close IN;
+	 }
+ }
+
+ our $nSamples = scalar @bams;
+ if (!@bams) {
+	print "\nERROR: no BAM files were found on $bamDir directory\n"; exit;
+ }
+}
+
+ ##########################################
+ #	Validate ROI file format consistency  #
+ ##########################################
+
+ ROIvalidator::validate();
+
+ our ($hasChr, $mappTrack, $centromeres, $hg19Track, $genomePatches ) = checkChrFormat($bams[0]);
+
+ #########################################
+ #	Checking custom reference directory  #
+ #########################################
+ our @normalizedFiles;
+ if ($doMerge) {
+    if ($normalizedDir) {
+        @normalizedFiles = glob ("$normalizedDir/*.normalized_counts.bed");
+        if (!@normalizedFiles) {
+            print "\nERROR: no custom references were on $normalizedDir directory\n"; exit;
+        }
+    }
+ }
+ ##############################################################################################
+ #    Checking  TEST samples (tests will be also self-controls if -useControlDir is absent)   #
+ #    Initializing sample and a GC global hashes                                              # 
+ ##############################################################################################
+ my $i = 0;
+ foreach my $bam( @bams ) {
+
+	# Test if bam exists
+	if (!-e $bam) {
+		print " ERROR: $bam does not exist\n";
+		exit;
+	}
+	my $sampleName  = basename($bam);
+	my $samplePath  = $bam;
+	$sampleName=~s/.bam//;
+
+	# Initializing GC hash
+	for (my $i = 10;$i<=90; $i++) {
+	   $GC{$sampleName}{$i}{ARR_COUNTS}     = undef;
+	   $GC{$sampleName}{$i}{MEDIAN_COUNTS}  = undef;
+	   $GC{$sampleName}{$i}{ARR_COV}        = undef;
+	   $GC{$sampleName}{$i}{MEDIAN_COV}     = undef;
+
+	   $GC{$sampleName}{$i}{ARR_COUNTS_X}   = undef;
+	   $GC{$sampleName}{$i}{MEDIAN_COUNTS_X}= undef;
+	   $GC{$sampleName}{$i}{ARR_COV_X}      = undef;
+	   $GC{$sampleName}{$i}{MEDIAN_COV_X}   = undef;
+	}
+  	# Initializing Sample hash
+	$sampleHash{$sampleName}{PATH}        = $bam;
+	$sampleHash{$sampleName}{ROI}         = undef;
+	$sampleHash{$sampleName}{MEANCOUNTS}  = undef;
+	$sampleHash{$sampleName}{MEANCOV}     = undef;
+	$sampleHash{$sampleName}{MEDIANCOUNTS}= undef;
+	$sampleHash{$sampleName}{ARR_COUNTS}  = undef;
+
+	# ChromosomeX
+	$sampleHash{$sampleName}{MEANCOVX}    = undef;
+	$sampleHash{$sampleName}{MEANCOUNTSX} = undef;
+	$sampleHash{$sampleName}{TOTALREADS_ONTARGET_X} = undef;
+	$sampleHash{$sampleName}{TOTALREADS_OFFTARGET_X} = undef;
+
+	$sampleHash{$sampleName}{TOTALREADS}     = undef;
+	$sampleHash{$sampleName}{READSONTARGET}  = undef;
+	$sampleHash{$sampleName}{READSOFFTARGET} = undef;				
+	$sampleHash{$sampleName}{MEANISIZE}      = undef;	
+	$sampleHash{$sampleName}{SDISIZE}        = undef;
+	$sampleHash{$sampleName}{OFFTARGETBIN}   = 15000;	
+	$sampleHash{$sampleName}{OFFTARGETMEDIAN}= undef;
+	$i++;
+ }
+
+print " INFO: Extracting On-target Mappability\n";
+Extract::getMappability($bed, "ontarget", $outDir, \%ontargetHash);
+
+if (!-e "$outDir/$outName.ReadCounts.bed") {
+
+	print " INFO: Performing On-target read depth extraction\n";
+	my $wverb = "";
+	$cmd = "$targetDepth -i $bamDir -o $outDir -g $genome -b $bed -n $outName -c -d -t $threads $wverb";
+	system ($cmd);
+    #rename "$outDir/ALL_ReadCounts.bed", "$outDir/$outDir.ReadCounts.bed";
+}
+else {
+	print " INFO: skipping on-target read death extraction. All files are already available\n";
+}
+
+# Getting sample info
+foreach my $sample ( sort keys %sampleHash ) {
+
+	my $str = `$grep '$sample' $outDir/summary_metrics.log`;
+	chomp $str;
+	my @arrStr = split (/\t/, $str);
+
+	$sampleHash{$sample}{TOTALREADS_ONTARGET}   = $arrStr[1];
+	$sampleHash{$sample}{READSONTARGET}         = $arrStr[2];
+	$sampleHash{$sample}{TOTALREADS_ONTARGET_X} = $arrStr[3];
+	$sampleHash{$sample}{ROI_ONTARGET}          = $arrStr[4];
+	$sampleHash{$sample}{MEANCOV_ONTARGET}      = $arrStr[5];
+	$sampleHash{$sample}{MEANCOUNTS_ONTARGET}   = $arrStr[6];
+	$sampleHash{$sample}{MEANISIZE}             = $arrStr[7];
+	$sampleHash{$sample}{SDISIZE}               = $arrStr[8];
+	$sampleHash{$sample}{MEANCOVX_ONTARGET}     = $arrStr[9];
+	$sampleHash{$sample}{MEANCOUNTSX_ONTARGET}  = $arrStr[10];
+	$sampleHash{$sample}{REFERENCE}             = undef;
+	$sampleHash{$sample}{SEGMENT_FILE}          = "$outDir/segmented.$sample.bed";
+
+	$sampleHash{$sample}{ONOFFTARGET_MEAN_RATIO}= undef;
+	$sampleHash{$sample}{ONOFFTARGET_SD_RATIO}  = undef;
+}
+
+print " INFO: Performing on-target normalization\n";		
+Normalize::doNormalization($outDir, "exome", "ontarget", \%ontargetHash);
+
+BuildReference::joinNormalizedCounts();
+
+#print " INFO: Building references from a pool of samples\n";
+#BuildReference::clusterBatches($ontargetDir, "ontarget");
+
+############################
+sub Help {
+	print "\n
+Usage:  ./GRAPES reference <PARAMS> <OPTIONS>
+
+    Params:
+
+	-i		STRING	 Input BAM/s. Can be a file with a list of BAMs. [REQUIRED]
+    -n      STRING	 Input directory with previously normalized counts.
+	-o		STRING   Output directory. [REQUIRED]
+	-g		STRING	 Genome reference in FASTA format. [REQUIRED]
+	-b		STRING	 BED regions. [REQUIRED]
+
+    commands:
+    -extract 
+    -merge
+    -plotClusters	Plot sample clusters\n\n";
+ exit;
+}
+
+
+sub checkChrFormat {
+
+ my $bam = shift;
+ my $str = `$samtools view -H $bam | $grep 'SN'`;
+ chomp $str;
+ 
+ my $mapFile;
+ my $centromerFile;
+ my $hasChr;
+ my @tmpStr = split (/\t/, $str);
+ my $sn = $tmpStr[1];
+ my $assembly = $tmpStr[4];
+ if ($sn =~/chr/) {
+	$hasChr = "yes";
+	if ($assembly =~/GRCh38/ || $assembly =~/hg38/) {
+		$mapFile = "$dirname/../mappability/GRCh38.mappability.100mer.bedGraph.gz";
+		if (!-e $mapFile) {
+			print " ERROR: $mapFile was not found\n"; exit;
+		}
+		$centromerFile = "$dirname/../db/centromeres.hg38.chr.bed";
+		if (!-e $centromerFile) {
+			print " ERROR: $centromerFile was not found\n"; exit;
+		}
+		$chrFile  = "$dirname/../db/hg38.chr.sort.txt";
+		if (!-e $chrFile) {
+			print " ERROR: $chrFile was not found\n"; exit;
+		}
+		$genomePatches = "$dirname/../db/Patches_grch37_v13.chr.txt";
+		if (!-e $genomePatches) {
+			print " ERROR: $genomePatches was not found\n"; exit;
+		}
+	}
+	else  {
+		$mapFile = "$dirname/../mappability/wgEncodeCrgMapabilityAlign100mer.chr.bedgraph.gz";
+		if (!-e $mapFile) {
+			print " ERROR: $mapFile was not found\n"; exit;
+		}
+		$centromerFile = "$dirname/../db/centromeres.chr.bed";
+		if (!-e $centromerFile) {
+			print " ERROR: $centromerFile was not found\n"; exit;
+		}
+		$chrFile  = "$dirname/../db/hg19.chr.sort.txt";
+		if (!-e $chrFile) {
+			print " ERROR: $chrFile was not found\n"; exit;
+		}
+		$genomePatches = "$dirname/../db/Patches_grch37_v13.chr.txt";
+		if (!-e $genomePatches) {
+			print " ERROR: $genomePatches was not found\n"; exit;
+		}
+	}
+ }
+ else {
+	$hasChr = "no";
+	if ($assembly =~/GRCh38/ || $assembly =~/hg38/) {
+		$mapFile = "$dirname/../mappability/GRCh38.mappability.100mer.bedGraph.gz";
+		if (!-e $mapFile) {
+			print " ERROR: $mapFile was not found\n"; exit;
+		}
+		$centromerFile = "$dirname/../db/centromeres.hg38.chr.bed";
+		if (!-e $centromerFile) {
+			print " ERROR: $centromerFile was not found\n"; exit;
+		}
+		$chrFile  = "$dirname/../db/hg38.chr.sort.txt";
+		if (!-e $chrFile) {
+			print " ERROR: $chrFile was not found\n"; exit;
+		}
+		$genomePatches = "$dirname/../db/Patches_grch37_v13.txt";
+		if (!-e $genomePatches) {
+			print " ERROR: $genomePatches was not found\n"; exit;
+		}
+	}
+	else {
+		$mapFile = "$dirname/../mappability/wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz";
+		if (!-e $mapFile) {
+			print " ERROR: $mapFile was not found\n"; exit;
+		}
+		$centromerFile = "$dirname/../db/centromeres.nochr.bed";
+		if (!-e $centromerFile) {
+			print " ERROR: $centromerFile was not found\n"; exit;
+		}
+		$chrFile  = "$dirname/../db/hg19.nochr.txt";
+		if (!-e $chrFile) {
+			print " ERROR: $chrFile was not found\n"; exit;
+		}
+		$genomePatches = "$dirname/../db/Patches_grch37_v13.txt";
+		if (!-e $genomePatches) {
+			print " ERROR: $genomePatches was not found\n"; exit;
+		}
+	}
+ }
+
+ $str = `$cat $chrFile`;
+ chomp $str;
+ @tmpStr = split (/\n/, $str);
+ %ChromosomeLengths = map {  (split /\t/,  $tmpStr[$_])[0] => (split /\t/, $tmpStr[$_])[1] } 0..$#tmpStr;
+ 
+ return ($hasChr, $mapFile, $centromerFile, $chrFile, $genomePatches);
+}

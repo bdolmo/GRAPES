@@ -1,0 +1,476 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Basename;
+use Cwd;
+use Getopt::Long;
+our $dirname = dirname (__FILE__);
+use Term::ANSIColor qw(:constants);
+use lib (dirname (__FILE__));
+use WGS::CNV;
+use WGS::mergeSV;
+use WGS::callSV;
+use WGS::HardFilter;
+use WGS::VCF;
+use WGS::vcf2HTML;
+use Config;
+use Misc::UnixCMD;
+
+our $version = "v0.9.4";
+# grapesBreak is used to analyze medium indels and SVs
+our $grapesBreak = "$dirname/../bin/grapes_sv/GRAPES";
+our $AnnFeat     = "$dirname/../bin/AnnFeat/AnnFeat";
+our $bwa         = "$dirname/../bin/SeqLib/bwa/bwa";
+our $executeRCP  = "$dirname/RCP/executeRCP.pl"; 
+our $extractMapp = "$dirname/getMapWGS.pl";
+our $runAnnotate  = "$dirname/runAnnotate";
+
+our $genome;
+our $outDir;
+our $bam;
+our $excludeRegions;
+our $numCluster;
+our $sdCluster;
+our $breakReads;
+our $minSizeSV;
+our $maxSizeSV = 10e6;
+our $threads = 1;
+our $chrom;
+our $debug;
+my $minOlap = 0.5;
+
+my $doAll        = "";
+my $doBreakpoint = "";
+my $doCNV        = "";
+my $doMerge      = "";
+my $doGenomeFeat = "";
+my $doFilter     = "";
+my $doVCF        = "";
+my $doHTML       = "";
+
+our $tabix = `which tabix`; 
+chomp $tabix;
+
+if (!$tabix) {
+	print " ERROR: tabix was not found on PATH\n"; exit;
+}
+
+our $bgzip = `which bgzip`; 
+chomp $bgzip;
+
+if (!$bgzip) {
+	print " ERROR: bgzip was not found on PATH\n"; exit;
+}
+
+our $cat  = `which cat`;
+chomp $cat;
+if (!$cat) {
+	print "ERROR: cat command not found\n";
+	exit;
+}
+
+our $zcat  = `which zcat`;
+chomp $zcat;
+if (!$zcat) {
+	print "ERROR: zcat command not found\n";
+	exit;	
+}
+
+our $cut  = `which cut`;
+chomp $cut;
+if (!$cut) {
+	print "ERROR: cut command not found\n";
+	exit;
+}
+
+our $awk  = `which awk`;
+chomp $awk;
+if (!$awk) {
+	print "ERROR: awk command not found\n";
+	exit;	
+}
+our $grep;
+our $sort;
+if ($Config{osname} =~/darwin/) {
+	$grep = `which egrep`; chomp $grep;
+	$sort = `which gsort`; chomp $sort;
+}
+else {
+	$grep = `which grep`; chomp $grep;
+	$sort = `which sort`; chomp $sort;
+}
+
+our $wc  = `which wc`;
+chomp $wc;
+if (!$wc) {
+	print "ERROR: wc command not found\n";
+	exit;
+}
+
+our $bedtools = `which bedtools`;
+chomp $bedtools;
+
+if (!$bedtools) {
+    print " ERROR: BEDtools was not found on PATH\n";
+	exit;
+}
+else {
+    my $bedtools_version = `$bedtools --version | $cut -d \" \" -f 2 | $awk '{ split (\$0, a, \".\");  print a[2] }'`;
+    chomp $bedtools_version;
+	if ($bedtools_version < 19) { 
+    	print " ERROR: BEDtools version $bedtools_version is too old. Please, consider installing the newest version\n"; exit;
+    }
+}
+
+our $samtools  = `which samtools`;
+chomp $samtools;
+if (!$samtools) {
+	print "ERROR: samtools command not found\n";
+	exit;	
+}
+
+  our $macs2 = `which macs2`;
+  chomp $macs2;
+
+  if (!$macs2) {
+    print " ERROR: macs2 was not found on PATH\n"; exit;
+  }
+
+our $sed  = `which sed`;
+chomp $sed;
+if (!$sed) {
+	print "ERROR: sed command not found\n";
+	exit;
+}
+
+our $paste  = `which paste`;
+chomp $paste;
+if (!$paste) {
+	print "ERROR: paste command not found\n";
+	exit;
+}
+
+our $head  = `which head`;
+chomp $head;
+if (!$head) {
+	print "ERROR: head command not found\n";
+	exit;
+}
+
+our $uniq  = `which uniq`;
+chomp $uniq;
+if (!$uniq) {
+	print "ERROR: uniq command not found\n";
+	exit;
+}
+ 
+our $mv  = `which mv`;
+chomp $mv;
+if (!$mv) {
+	print "ERROR: mv command not found\n";
+	exit;
+}
+
+our $tail  = `which tail`;
+chomp $tail;
+if (!$tail) {
+	print "ERROR: mv command not found\n";
+	exit;
+}
+
+our $Rscript  = `which Rscript`;
+chomp $Rscript;
+
+if (!$Rscript) {
+    print " ERROR: Rscript was not found on PATH\n"; exit;
+}
+
+# Displaying usage panel
+Help () if (@ARGV<1 or !GetOptions(
+	'o=s'=>\$outDir,
+	'g=s'=>\$genome,
+	'bam=s'=>\$bam,
+	'chr=s'=>\$chrom,
+    'e=s'=>\$excludeRegions,
+	'c=i'=>\$numCluster,
+   	's=i'=>\$sdCluster,
+   	'r=i'=>\$breakReads,
+	'm=i'=>\$minSizeSV,
+	't=i'=>\$threads,
+	'all'=>\$doAll,
+	'breakpoint'=>\$doBreakpoint,
+	'cnv'=>\$doCNV,
+	'merge'=>\$doMerge,
+	'gfeatures'=>\$doGenomeFeat,
+	'filter'=>\$doFilter,
+	'vcf'=>\$doVCF,
+	'd'=>\$debug,
+	'reportHTML' =>\$doHTML	
+   )
+);
+
+ if (!$outDir) {
+	print " \nERROR: output directory was not specified\n";
+	Help();
+	exit;
+ }
+ if (!-e $outDir) {
+	mkdir $outDir;
+ }
+ if (!$bam) {
+     print " \nERROR: missing BAM file (-b)\n";
+     Help();
+     exit;
+ }
+ if (!-e $bam) {
+     print " \nERROR: Non-existent $bam BAM file (-b)\n";
+     Help();
+     exit;
+ }
+ if (!$genome) {
+	print " \nERROR: missing genome file (-g)\n";
+	Help();
+	exit;
+ }
+
+ if ($doAll) {
+   $doBreakpoint= 1;
+   $doCNV       = 1;
+   $doMerge     = 1;
+   $doGenomeFeat= 1;
+   $doFilter    = 1;
+   $doVCF       = 1;
+ }
+our $outName = basename($bam); 
+$outName =~s/.bam//;
+
+our $outVCF = "$outDir/$outName.vcf";
+
+# Check that all index files for bwa are available at genome (-g) path
+checkBwaIdx($genome);
+
+$minSizeSV = 50 if !$minSizeSV;
+
+ #####################################################################
+ #	Getting mappability track, filtering centromers                  #
+ #####################################################################
+
+ our ($hasChr, $mappTrack, $centromeres, $hg19Track ) = checkChrFormat($bam);
+ our $segDups = "$dirname/../db/segmentalDups_hg19.bed";
+
+ if (!$numCluster) {
+    $numCluster = 5;
+ }
+ if (!$sdCluster) {
+    $sdCluster = 4;
+ }
+ if (!$breakReads) {
+    $breakReads = 5;
+ }
+ if (!$excludeRegions) {
+    $excludeRegions  = $centromeres;
+ }
+
+
+my $doDebug = "";
+if ($debug) {
+	$doDebug = " -d";
+}
+
+my $cmd;
+if ($doBreakpoint) {
+	$cmd = "$grapesBreak -b $bam -g $genome -o $outDir -n $outName  -c $numCluster -s $sdCluster -r $breakReads -e $excludeRegions -t $threads $doDebug";
+	print "$cmd\n"; 	
+	system $cmd;
+}
+$cmd = "$bgzip $outDir/$outName.counts_window.bed -f";
+system $cmd if !-e "$outDir/$outName.counts_window.bed.gz";
+
+if ($doCNV) {
+	print " INFO: Calling CNVs\n";
+	CNV::call("$outDir/$outName.counts_window.bed.gz", $outDir, $outName, $chrom);
+}
+
+#print " INFO: Calling additional SVs from assembled contigs\n";
+#callSV::call("$outDir/$outName.fastq", "$outDir/$outName.bwacalls.bed", 20, $minSizeSV, 2000, $threads, $genome);
+#exit;
+
+#`samtools view -bhS $outDir/$outName.contigs.sam -o $outDir/$outName.contigs.bam`;
+#`samtools sort -T merda $outDir/$outName.contigs.bam -o $outDir/$outName.contigs.sorted.bam`;
+#`samtools index $outDir/$outName.contigs.sorted.bam`;
+#exit;
+
+my @tmpFiles = ();
+if (-e "$outDir/$outName.tmp.rawcalls.bed") {
+	push @tmpFiles, "$outDir/$outName.tmp.rawcalls.bed";
+}
+if (-e "$outDir/$outName.CNV.bed") {
+	push @tmpFiles, "$outDir/$outName.CNV.bed";
+}
+if (-e "$outDir/$outName.bwacalls.bed") {
+	push @tmpFiles, "$outDir/$outName.bwacalls.bed";
+}
+
+if ($doMerge) {
+	# Joining large and small SV calls
+	$cmd = "$::cat @tmpFiles | $::sort -V | $::uniq > $outDir/$outName.rawcalls.bed";
+	system $cmd if !-e "$outDir/$outName.rawcalls.bed";
+
+	print " INFO: Merging SVs\n";
+	mergeSV::Merge( $bam, "$outDir/$outName.rawcalls.bed", "$outDir/$outName.merged.bed");
+}
+my $bedOutInfo  = "$outDir/$outName.annFeatures.bed";
+
+if ($doGenomeFeat) {
+	print " INFO: Annotating genomic features\n";
+	$cmd = "$AnnFeat $outDir/$outName.merged.bed $bam $genome $bedOutInfo $threads > $outDir/$outName.annFeatures.tmp.bed";
+	system $cmd;
+
+	$cmd = "$::sort -V $outDir/$outName.annFeatures.tmp.bed > $bedOutInfo";
+	system $cmd if !-e $bedOutInfo;
+	addAnnotFeatHheader($bedOutInfo);
+}
+if ($doFilter) {
+	print " INFO: Applying hard filters\n";
+	HardFilter::apply($bedOutInfo);
+}
+if ($doVCF) {
+	print " INFO: Generating VCF\n";
+	VCF::generate("$outDir/$outName.filtered.bed");
+}
+	$cmd = "$runAnnotate -in $outVCF -o $outDir -l $minOlap";
+	system ($cmd);
+	my $annotVCF = $outVCF;
+	$annotVCF=~s/.vcf/.annotated.vcf/;
+	$outVCF = $annotVCF;
+
+
+if ($doHTML) {
+	print " INFO: Generating HTML report\n";
+	vcf2HTML::createHTMLreport($outVCF);	
+}
+
+unlink("$outDir/$outName.annFeatures.tmp.bed");
+#unlink("$outDir/$outName.bwacalls.bed");
+#unlink("$outDir/$outName.merged.bed");
+#unlink("$outDir/$outName.tmp.rawcalls.bed");
+#unlink("$outDir/$outName.rawcalls.bed");
+
+#unlink( glob "$outDir/$outName.FR.bam");
+#unlink( glob "$outDir/$outName.RF.bam");
+#unlink( glob "$outDir/$outName.FF.bam");
+#unlink( glob "$outDir/$outName.RR.bam");
+#unlink( glob "$outDir/$outName.*clusters.bed");
+
+# END
+
+############################
+sub checkChrFormat {
+
+ my $bam = shift;
+ my $str = `$samtools view -H $bam | $grep 'SN'`;
+ chomp $str;
+ 
+ my $mapFile;
+ my $centromerFile;
+ my $hasChr;
+ my @tmpStr = split (/\t/, $str);
+ my $sn = $tmpStr[1];
+ my $assembly = $tmpStr[4];
+ my $chrFile;
+ if ($sn =~/chr/) {
+	$hasChr = "yes";
+	if ($assembly =~/GRCh38/ || $assembly =~/hg38/) {
+		$mapFile = "$dirname/../mappability/GRCh38.mappability.100mer.bedGraph.gz";
+		$centromerFile = "$dirname/../db/centromeres.hg38.chr.bed";
+		$chrFile  = "$dirname/../db/hg38.chr.sort.txt";
+	}
+	else  {
+		$mapFile = "$dirname/../mappability/wgEncodeCrgMapabilityAlign100mer.chr.bedgraph.gz";
+		$centromerFile = "$dirname/../db/ceph18.b37.exclude.2014-01-15.chr.bed";
+		$chrFile  = "$dirname/../db/hg19.chr.sort.txt";
+	}
+ }
+ else {
+	$hasChr = "no";
+	if ($assembly =~/GRCh38/ || $assembly =~/hg38/) {
+		$mapFile = "$dirname/../mappability/GRCh38.mappability.100mer.bedGraph.gz";
+		$centromerFile = "$dirname/../db/centromeres.hg38.chr.bed";
+		$chrFile  = "$dirname/../db/hg38.chr.sort.txt";
+	}
+	else {
+		$mapFile = "$dirname/../mappability/wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz";
+		$centromerFile = "$dirname/../db/ceph18.b37.exclude.2014-01-15.nochr.bed";
+		$chrFile  = "$dirname/../db/hg19.nochr.txt";
+	}
+ }
+
+ # Creating a hash to store chromosome lengths
+ $str = `$cat $chrFile`; chomp $str;
+ @tmpStr = split (/\n/, $str);
+ our %ChromosomeLengths = map {  (split /\t/,  $tmpStr[$_])[0] => (split /\t/, $tmpStr[$_])[1] } 0..$#tmpStr;
+ 
+ return ($hasChr, $mapFile, $centromerFile, $chrFile);
+
+}
+#####################################################################
+sub checkBwaIdx {
+	my $genome = shift;
+	my $genomeDir = dirname ($genome);
+	my @files = (".amb", ".ann", ".pac", ".bwt", ".sa");
+	my $flag = 0;
+	foreach my $file (@files) {
+		if (!-e "$genome$file") {
+			print " ERROR: $file was not found for genome $genome\n";
+			$flag = 1;
+			exit;
+		}
+	}
+	if ($flag == 0) {
+		print " INFO: All bwa index files are available\n";
+	}
+}
+
+#####################################################################
+sub Help {
+	print "\n
+     ./GRAPES wgs [Required_params] [Optional_parameters]
+
+   	-bam	STRING	BAM input file [REQURED]
+	-g		STRING	Genome reference in FASTA format [REQUIRED]
+	-e		STRING	Excluded regions in BED format [REQUIRED]
+	-o		STRING	Output directory [REQUIRED]
+	-c		INT		Minimum number of Discordant pairs in a cluster (default: 5)
+	-s		INT		Minimum std.dev's from the mean insert size to include discordant pairs on a cluster (default: 4)
+	-r		INT		Minimum number of Break reads in a cluster (default 5)
+	-t      INT     Number of CPUs (default 1)\n\n";
+
+ 	exit;
+}
+######################################
+sub addAnnotFeatHheader {
+
+	my $infile = shift;
+	my @header = ("#Chr", "Start", "End", "Precision", "SVTYPE", "SVLEN", "MAPQ", "Kmer_diversity", "Breakreads", "Assembled", "Discordants", "Ratio_RD", "MAD_RD", "Phred_discordant", "Phred_RD", "Total_SNV", "Homozygous_ratio", "GC_content", "5pRRD", "3pRRD", "Evidence");
+	open (IN, "<", $infile) || die " ERROR: Unable to open $infile\n";
+	open (OUT, ">", "$infile.tmp") || die " ERROR: Unable to open $infile.tmp\n";
+	my $i = 0;
+	while (my $line=<IN>) {
+		chomp $line;
+		if ($i == 0) {
+			my $header = join ("\t", @header);
+			print OUT "$header\n";
+			print OUT "$line\n";
+		}
+		else {
+			print OUT "$line\n";
+		}
+		$i++;
+	}
+	close IN;
+	close OUT;
+
+	unlink($infile);
+	rename "$infile.tmp", $infile;
+}

@@ -1,0 +1,230 @@
+
+.header {
+    float:left;
+    text-align:center;
+    width:100%;
+    height:80px;;
+    background-color:white;
+}
+
+body {
+    font-family:Helvetica;
+    background-color: 	#F8F8F8;
+    margin:5px;
+    font-size:12;
+}
+
+h1 {
+    font-family:Helvetica;
+    font-size:20;
+}
+
+ul {
+    list-style-type:none;
+    margin:0;
+    padding:0;
+    overflow:hidden;
+    background-color:#333;
+}
+
+p.flashes {
+    color:green;
+    font-size:17px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+li {
+    float:left;
+}
+
+li a {
+    display:block;
+    color:white;
+    text-align:center;
+    text-decoration:none;
+    padding:14px;
+}
+
+li a:hover {
+    background-color:black;
+}
+
+.active {
+    background-color: #4CAF50;
+}
+
+.flash-box {
+    overflow:auto;
+    text-align:center;
+    background-color:#e5f7e5;
+    margin-left: auto;
+    margin-right: auto;
+    border: 1px solid green;
+    padding: 6px;
+    font-family:Helvetica;
+    color:green;
+    width:15%;
+    margin-top:15px;
+}
+
+.container {
+    display: none;
+    width: 70%;
+    float: center;
+    margin-left:auto;
+    margin-right:auto;
+    padding-top:20px;
+    padding-bottom:20px;
+    background-color:white;
+    border: 1px solid lightgrey;
+    overflow:hidden;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+
+    flex-flow: row wrap;
+  
+    /* Then we define how is distributed the remaining space */
+    justify-content: space-around;
+
+}
+
+.box {
+    margin:2px;
+    padding:5px;
+    width: 31%;
+    background-color:white;
+    font-family:Helvetica;
+ }
+
+/* Clear floats after the columns */
+.row:after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+.larger-box {
+    overflow:auto;
+    text-align:center;
+    background-color:white;
+    margin-left: auto;
+    margin-right: auto;
+    width:25%;
+    font-family:Helvetica;
+    padding:10px;
+    margin-top:15px;
+    margin-bottom:15px;
+    border: 1px solid lightgrey;
+}
+
+input[type=text] {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 12px;
+}
+
+.footer {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    background-color:#333;
+    color: white;
+    text-align: center;
+}
+ 
+div.dataTables_wrapper {
+    margin-left:auto;
+    margin-right:auto;
+    width: 90%;
+}
+
+thead {
+    border: 1px solid #ddd;
+    padding: 8px;
+    font-size:14px;
+    text-align:center;
+    background-color: lightgrey;
+}
+
+td {
+
+    padding: 8px;
+    font-size:14px;
+    text-align:center;
+}
+  
+   tr:nth-child(even){background-color: #f2f2f2;}
+  
+   tr:hover {background-color: #ddd;}
+  
+
+  .gene-cards {
+    display:block;
+    color:blue;
+    text-align:center;
+    text-decoration:none;
+  }
+
+  .delete {
+    background-color: rgba(255, 0, 0, 0.651);
+    color: white;
+    padding: 2px;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+  }
+
+
+.edit {
+    background-color: green;
+    color: white;
+    padding: 2px;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.tab {
+    width: 70%;
+    float: center;
+    margin-top:10px;
+    margin-left:auto;
+    margin-right:auto;
+    overflow: hidden;
+    border: 1px solid lightgrey;
+    background-color: white;
+    border-radius: 5px;
+}
+
+  /* Style the buttons that are used to open the tab content */
+ .tab button {
+    background-color: inherit;
+    float: left;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 14px 16px;
+    transition: 0.3s;
+ }
+  
+/* Change background color of buttons on hover */
+ .tab button:hover {
+    background-color: #ddd;
+ }
+  
+ /* Create an active/current tablink class */
+ .tab button.active {
+    background-color: #ccc;
+ }
+  
+ /* Style the tab content */
+ .tabcontent {
+    display: none;
+    padding: 6px 12px;
+    border-top: none;
+ }
+

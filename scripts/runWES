@@ -1,0 +1,1332 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Basename;
+use Parallel::ForkManager;
+use Cwd;
+use Getopt::Long;
+use Config;
+use File::Copy;
+use JSON::MaybeXS;
+use Data::Dumper;
+
+our $dirname = dirname (__FILE__);
+use Term::ANSIColor qw(:constants);
+use lib (dirname (__FILE__));
+use WES::Annotate;
+use WES::Breakpoint;
+use WES::BuildReference;
+use WES::CallCNV;
+use WES::Extract;
+use WES::HardFilter;
+use WES::Intron;
+use WES::MergeSV;
+use WES::Normalize;
+use WES::Offtarget;
+use WES::PCAnorm;
+use WES::Plot;
+use WES::Ratio;
+use WES::ROIvalidator;
+use WES::Segment;
+use WES::VCF;
+use WES::vcf2HTML;
+use WES::VAF;
+use WES::Reference;
+
+#use WES::LOH;
+use Misc::Utils;
+use Misc::UnixCMD;
+
+# grapesBreak is used to analyze medium indels and SVs
+our $grapesBreak = "$dirname/../bin/grapes_sv/GRAPES";
+
+# TargetDepth is a tool for extracting coverage, gc and insert sizes
+our $targetDepth = "$dirname/../bin/TargetDepth/targetDepth.pl";
+
+# ReportPDF will be deprecated soon for HTML report.
+our $reportExe = "$dirname/createReport.pl"; 
+
+our $runAnnotate = "$dirname/../scripts/runAnnotate";
+
+# Tool for counting offtarget reads
+our $offtargetExtractor = "$dirname/../bin/offtarget/extractOfftarget";
+
+our $AnnFeat         = "$dirname/../bin/AnnFeat/AnnFeat";
+our $imgDir          = "$dirname/../img/";
+our $getMapOfftarget = "$dirname/offtargetMap.pl";
+our $getMapOntarget  = "$dirname/ontargetMap.pl";
+our $mergeSegments   = "$dirname/mergeSegments.pl";
+our $mergeCnvBreaks  = "$dirname/mergeCnvBreaks.pl";
+our $excludeRegions  = "$dirname/../db/centromeres.nochr.bed";
+our $gencodeList     = "$dirname/../db/gencode.v27/gencode.v27lift37.annotation.gff3.gz";
+our $geneList        = "$dirname/../db/hg19_geneList.txt.gz";
+our $sqliteDir       = "$dirname/../db/sqlite";
+our $gnomADvcf		 = "$dirname/../db/gnomad/gnomad_v2.1_sv.sites.vcf.gz";
+
+our $devNull         = ">/dev/null 2>&1";
+our $devNullStderr   = "2> /dev/null";
+our $version = "v0.9.4";
+our $tabix = `which tabix`; 
+chomp $tabix;
+
+if (!$tabix) {
+	print " ERROR: tabix was not found on PATH\n"; exit;
+}
+
+our $bgzip = `which bgzip`; 
+chomp $bgzip;
+
+if (!$bgzip) {
+	print " ERROR: bgzip was not found on PATH\n"; exit;
+}
+
+our $cat  = `which cat`;
+chomp $cat;
+if (!$cat) {
+	print "ERROR: cat command not found\n";
+	exit;
+}
+
+our $gzip  = `which gzip`;
+chomp $gzip;
+if (!$gzip) {
+	print "ERROR: gzip command not found\n";
+	exit;
+}
+
+our $gunzip  = `which gunzip`;
+chomp $gunzip;
+if (!$gunzip) {
+	print "ERROR: gunzip command not found\n";
+	exit;
+}
+
+our $zcat  = `which zcat`;
+chomp $zcat;
+if (!$zcat) {
+	print "ERROR: zcat command not found\n";
+	exit;	
+}
+
+our $cut  = `which cut`;
+chomp $cut;
+if (!$cut) {
+	print "ERROR: cut command not found\n";
+	exit;
+}
+
+our $awk  = `which awk`;
+chomp $awk;
+if (!$awk) {
+	print "ERROR: awk command not found\n";
+	exit;	
+}
+our $grep;
+our $sort;
+if ($Config{osname} =~/darwin/) {
+	$grep = `which egrep`; chomp $grep;
+	$sort = `which gsort`; chomp $sort;
+}
+else {
+	$grep = `which grep`; chomp $grep;
+	$sort = `which sort`; chomp $sort;
+}
+
+our $zgrep = `which zgrep`; 
+chomp $zgrep;
+if (!$zgrep) {
+	print "ERROR: zgrep command not found\n";
+	exit;
+}
+
+our $head  = `which head`;
+chomp $head;
+if (!$head) {
+	print "ERROR: head command not found\n";
+	exit;
+}
+
+our $wc  = `which wc`;
+chomp $wc;
+if (!$wc) {
+	print "ERROR: wc command not found\n";
+	exit;
+}
+
+our $bedtools = `which bedtools`;
+chomp $bedtools;
+our $bedtools_version;
+if (!$bedtools) {
+    print " ERROR: BEDtools was not found on PATH\n";
+	exit;
+}
+else {
+    $bedtools_version = `$bedtools --version | $cut -d \" \" -f 2 | $awk '{ split (\$0, a, \".\");  print a[2] }'`;
+    chomp $bedtools_version;
+	if ($bedtools_version < 19) { 
+    	print " ERROR: BEDtools version $bedtools_version is too old. Please, consider installing the newest version\n"; exit;
+    }
+}
+
+our $samtools  = `which samtools`;
+chomp $samtools;
+
+our $samtools_version;
+if (!$samtools) {
+	print "ERROR: samtools command not found\n";
+	exit;	
+}
+else {
+	$samtools_version = `$samtools --version | $cut -d \" \" -f 2 | $head -1`;
+	chomp $samtools_version;
+}
+
+our $bcftools  = `which bcftools`;
+chomp $bcftools;
+if (!$bcftools) {
+	print "ERROR: bcftools command not found\n";
+	exit;	
+}
+
+our $freebayes = `which freebayes`;
+chomp $freebayes;
+
+if (!$freebayes) {
+	#do not exit
+	print " WARNING: freebayes was not found on PATH\n";
+}
+
+our $macs2 = `which macs2`;
+chomp $macs2;
+
+  if (!$macs2) {
+    print " ERROR: macs2 was not found on PATH\n"; exit;
+  }
+
+our $sed  = `which sed`;
+chomp $sed;
+if (!$sed) {
+	print "ERROR: sed command not found\n";
+	exit;
+}
+
+our $paste  = `which paste`;
+chomp $paste;
+if (!$paste) {
+	print "ERROR: paste command not found\n";
+	exit;
+}
+
+our $uniq  = `which uniq`;
+chomp $uniq;
+if (!$uniq) {
+	print "ERROR: uniq command not found\n";
+	exit;
+}
+ 
+our $mv  = `which mv`;
+chomp $mv;
+if (!$mv) {
+	print "ERROR: mv command not found\n";
+	exit;
+}
+
+our $tail  = `which tail`;
+chomp $tail;
+if (!$tail) {
+	print "ERROR: mv command not found\n";
+	exit;
+}
+
+our $Rscript  = `which Rscript`;
+chomp $Rscript;
+
+if (!$Rscript) {
+    print " ERROR: Rscript was not found on PATH\n"; exit;
+}
+
+# New, adding Mosdepth
+# our $mosdepth  = `which mosdepth`;
+# chomp $mosdepth;
+
+# if (!$mosdepth) {
+#     print " ERROR: Mosdepth was not found on PATH\n"; exit;
+# }
+
+our $input;
+our $controls;
+our $cases;
+our $outDir;
+our $outName;
+our $genome;
+our $bed;
+our $threads;
+our $verbose = "";
+our $minCorrelation;
+our $minZscore = 2.5;
+our $variancePCA = 0.7; # default variance to remove
+our $maxSampleSizeCluster;
+our $minSampleSizeCluster;
+our $lowerDelCutoff;
+our $upperDelCutoff;
+our $lowerDupCutoff;
+our $createReport;
+our $minSizeSV = 15;
+our $maxSizeSV = 5000000;
+our $filterDiscordantOnly = "";
+#our $minOfftargetReads = 1e6;
+our $minOfftargetReads = 150000;
+our $minOfftargetSD = 0.2;
+our $PCAvariance = 0.7;
+my $normalizationMethod = "median";
+
+# Params for breakpoint analysis
+our $minDiscordants = 5;
+our $minDiscordantsSD = 10;
+our $minBreakReads  = 5;
+
+# Options
+our $doBreakpoint   = "";
+our $doFreebayes    = "";
+our $doSamtools     = "";
+our $doVAF          = "";
+our $doExtraction   = "";
+our $doOfftarget    = "";
+our $buildReference = "";
+our $doNormalization= "";
+our $doCalling      = "";
+our $doFilter       = "";
+our $doAnnotate     = "";
+our $plotBiases     = "";
+our $plotScatter    = "";
+our $plotSingleExon = "";
+our $plotLargeCNV   = "";
+our $plotKaryotype  = "";
+my  $useControlDir  = "";
+my  $doAll          = "";
+our $doCaseControl  = 0;
+our $doPooled       = 1;
+
+my $noBreakpoint = "";
+my $noOfftarget  = "";
+my $noVaf        = "";
+my $noCallCNV    = "";
+my $noAnnotate   = "";
+my $noFilter     = "";
+my $noPlotLarge  = "";
+my $noPlotSingle = "";
+my $noPlotScatter= "";
+my $noReportHTML = "";
+my $noPlotCNV    = "";
+
+# Defining global hashes that will be filled once and not modified afterwards.
+our $genomeLength;
+
+# Saving chromosome lengths
+our %ChromosomeLengths = ();
+
+# Coordinates, GC
+our %ExonFeatures = ();
+
+# Saving Intron lengths, gc and mappability
+our %IntronFeatures = ();
+
+# Saving ROIs that are filetered
+our %filteredRois = ();
+
+# Here we will display sample name as key, 
+our %sampleHash = ();
+
+# Here we will store information from references that come from the database
+our %referenceHash = ();
+
+# Here we will single base coverage. Secondary keys will be SAMPLE, GC, MAP
+our %ontargetCovPerBase = ();
+
+# Here we will save exon coordinate as key. Secondary keys will be SAMPLE, GC, MAP
+our %ontargetHash = ();
+
+# GC as keys with median depth data as values
+our %GC = ();
+
+# Here we will save intergenic bin coordinate as key. Secondary keys will be SAMPLE, GC, MAP
+our %offtargetHash = ();
+
+# Median exon length
+our $median_exon_length;
+
+# Length intervals as key, array as value
+our %ExonLength = ();
+
+# Clusters of sample batches based on minimum correlation
+our %batchClusters = ();
+
+# Json to store results
+our %analysisJson  = ();
+
+# Displaying usage panel
+Help () if (@ARGV<1 or !GetOptions(
+
+	# For pooled analysis
+	'pooled=s'=>\$input, 
+
+	# For test-control paired analysis
+	'cases=s'   =>\$cases,
+	'controls=s'=>\$controls,
+
+	'o=s'=>\$outDir,
+	'g=s'=>\$genome,
+	'b=s'=>\$bed,
+    't=i'=>\$threads,
+
+	'all' =>\$doAll,
+
+	# Breakpoint analysis
+	'breakpoint'     =>\$doBreakpoint,
+	'minBreakReads'  =>\$minBreakReads,
+	'minDiscordantSD=i'=>\$minDiscordantsSD,
+    'minDiscordants=i' =>\$minDiscordants,
+	'filterDiscordantOnly' =>\$filterDiscordantOnly,
+
+	'extract'      =>\$doExtraction,
+	'offtarget'    =>\$doOfftarget,	
+	'build-ref'    =>\$buildReference,
+	'useControlDir'=>\$useControlDir,
+	'normalize=s'  =>\$doNormalization,
+	'callCNV'      =>\$doCalling,
+	'plotScatter'  =>\$plotScatter,
+	'plotKaryotype'=>\$plotKaryotype,
+	'plotBiases'   =>\$plotBiases,
+	'plotSingleExon' =>\$plotSingleExon,
+	'plotLargeCNV' =>\$plotLargeCNV,
+	'filterVCF'    =>\$doFilter,
+	'annotate'	   =>\$doAnnotate,
+	'freebayes'    =>\$doFreebayes,
+	'samtools'     =>\$doSamtools,
+	'reportHTML'   =>\$createReport,
+	'vaf'          =>\$doVAF,
+
+	'no-breakpoint'=>\$noBreakpoint,
+	'no-offtarget' =>\$noOfftarget,
+	'no-vaf'       =>\$noVaf,   
+	'no-callCNV'   =>\$noCallCNV, 
+	'no-scatter'   =>\$noPlotScatter, 
+	'no-plotCNV'   =>\$noPlotCNV, 
+	'no-annotate'  =>\$noAnnotate, 
+	'no-filter'    =>\$noFilter, 
+	'no-reportHTML'=>\$noReportHTML, 
+	'minZscore=f'     =>\$minZscore,
+	'minCorrelation=f'=>\$minCorrelation,
+	'PCAvariance=f' =>\$PCAvariance,
+	'minSampleSizeCluster=i'=>\$minSampleSizeCluster,
+	'maxSampleSizeCluster=i'=>\$maxSampleSizeCluster,
+
+	'minOffreads=i'=>\$minOfftargetReads, # Default minimum number of offtarget reads needed to trigger analysis
+	'minOffsd=i'=>\$minOfftargetSD,
+
+	'lowerDelCutoff=f'      =>\$lowerDelCutoff,
+	'upperDelCutoff=f'      =>\$upperDelCutoff,
+	'lowerDupCutoff=f'      =>\$lowerDupCutoff,
+	'maxSizeSV=i' 			=>\$maxSizeSV,
+	'minSizeSV=i'           =>\$minSizeSV,
+	'verbose'               =>\$verbose,
+	)
+);
+
+if ($PCAvariance > 1 || $PCAvariance < 0) {
+	print " ERROR: --PCAvariance must be between 0 and 1\n";
+	exit;
+}
+
+$lowerDelCutoff = 0.35 if !$lowerDelCutoff;
+$upperDelCutoff = 0.71 if !$upperDelCutoff;
+$lowerDupCutoff = 1.24 if !$lowerDupCutoff;
+$minCorrelation = 0.91 if !$minCorrelation;
+$minSampleSizeCluster = 2 if !$minSampleSizeCluster;
+$maxSampleSizeCluster = 15 if !$maxSampleSizeCluster;
+$minZscore  = 2.58 if !$minZscore;
+ our $pm = Parallel::ForkManager->new($threads);
+
+ my $cmd;
+ my $wverb = $verbose ? "verbose" : "";
+
+ # Input can be:
+ # 1. A single BAM
+ # 2. Multiple BAMs -> BAM1,BAM2
+ # 3. A directory with BAMs.
+ # 4. A file with a list of BAMs
+
+ if (!$outDir) {
+	print " \nERROR: output directory was not specified\n";
+	Help();
+	exit;
+ }
+ if (!-e $outDir) {
+	mkdir $outDir;
+ }
+ if (!$bed) {
+	print " ERROR: a BED file is required\n";
+	Help();
+	exit;
+ }
+ if (!$genome) {
+	print " ERROR: missing genome file (-g)\n";
+	Help();
+	exit;
+ }
+
+ $outName = basename($outDir);
+
+ if ($doAll) {
+   $doBreakpoint    = 1;
+   $doExtraction    = 1;
+   $doOfftarget     = 1;
+   $buildReference  = 1;
+   #$doNormalization = 1;
+   $doCalling       = 1;
+   $plotBiases      = 0; # Pretty unnecessary right now
+   $plotScatter     = 1;
+   $plotLargeCNV    = 1;
+   $createReport    = 1;
+   $plotKaryotype   = 1;
+   $createReport    = 1;
+   $doVAF           = 0;
+   $doFilter        = 1;
+   $doAnnotate      = 0;
+   $plotSingleExon  = 1;
+ }
+
+ if ($doVAF) {
+	 if (!$doSamtools && !$doFreebayes) {
+		# SAMtools as default
+		$doSamtools = 1;
+	 }
+ }
+ if ($doSamtools || $doFreebayes) {
+	$doVAF = 1;
+ }
+ 
+ if ($noBreakpoint) {
+	 $doBreakpoint = 0;
+ }
+ if ($noAnnotate) {
+	 $doAnnotate = 0;
+ }
+  if ($noCallCNV) {
+	 $doCalling = 0;
+ }
+  if ($noOfftarget) {
+	 $doOfftarget = 0;
+ }
+  if ($noFilter) {
+	 $doFilter = 0;
+ }
+  if ($noPlotCNV) {
+	 $plotLargeCNV = 0;
+	 $plotSingleExon = 0;
+ }
+ if ($noReportHTML) {
+	 $createReport = 0;
+ }
+ if ($noVaf) {
+	 $doVAF = 0;
+ }
+ if ($cases && $controls) {
+	$doCaseControl = 1;
+	$doPooled = 0;
+ }
+
+ our $onTargetFilteredROIs  = "$outDir/ON_TARGET/filtered_regions.txt";
+ our $offTargetFilteredROIs = "$outDir/OFF_TARGET/filtered_regions.txt";
+
+ # Off-target bed file
+ my $off_bed = "$outDir/offtarget_regions.bed";
+
+ # Off-target bed file
+ my $on_off_bed = "$outDir/ON_OFF_regions.bed";
+
+ my @arrayOfftargetBinSizes = ();
+ our $chrFile;
+
+ # Main outDir
+ mkdir "$outDir/SHORT_INTRONS";
+ mkdir "$outDir/SEGMENT_DATA";
+ mkdir "$outDir/PLOT_DATA";
+ mkdir "$outDir/BAF_DATA";
+
+ # On target directory
+ our $ontargetDir = "$outDir/ON_TARGET";
+ mkdir $ontargetDir;
+ mkdir "$ontargetDir/SEGMENT_DATA";
+ mkdir "$ontargetDir/PLOT_DATA";
+ mkdir "$ontargetDir/BAF_DATA";
+
+ # Off-target directory
+ our $offtargetDir = "$outDir/OFF_TARGET";
+ mkdir $offtargetDir;
+ mkdir "$offtargetDir/SEGMENT_DATA";
+ mkdir "$offtargetDir/PLOT_DATA";
+ mkdir "$offtargetDir/BAF_DATA";
+
+ # global hash of files
+ our %HoF = (
+	CORRELATIONS_ON  => "$ontargetDir/$::outName.cor_corrected.txt", # File that stores pairwise read depth sample correlations
+    COUNTS_ON        => "$ontargetDir/$::outName.ReadCounts.bed", # Master file with read counts for all samples
+    COVERAGES_ON     => "$ontargetDir/$::outName.Coverages.bed", # Master file with per base coverages for all samples
+	NORM_COUNTS_ON   => "$ontargetDir/$::outName.NormalizedCounts.bed", # Master file with normalized counts for all samples
+    NORM_COVERAGE_ON => "$ontargetDir/$::outName.NormalizedCoverage.bed", # Master file with normalized coverages for all samples
+	MERGED_NORM_COV  => "$ontargetDir/$::outName.MergedNormalizedCounts.bed", # Merged normalized counts of NORM_COUNTS_ON and database
+    RATIOS_ON        => "$ontargetDir/$::outName.Ratios.bed", # Master file with sample roi ratios for all samples
+	REFERENCES       => "$ontargetDir/$::outName.references.txt", # File with created references
+	FILTERED_ON      => "$ontargetDir/filtered_regions.txt", # Filtered regions due to low mappability, gc.
+	EXPORTED_DB      => "$ontargetDir/References.sqlite.txt", # Database exported in .txt temporary file
+	JSON             => "$outDir/$::outName.json",
+ );
+
+ # Defining SQLite-related variables   
+ our $roiName  = basename($::bed) if $::bed;
+ $roiName =~s/.bed// if $roiName;
+ our $driver   = "SQLite"; 
+ our $userid   = "";
+ our $password = ""; 
+ our $database = $::sqliteDir . "/" . $roiName . ".db";
+ our $dsn = "DBI:$driver:dbname=$database";
+ our $dbh = DBI->connect($::dsn, $::userid, $::password, 
+ { RaiseError => 1,
+    AutoCommit => 0 # By setting autocommit to 0 we speed up the insertion process
+ })
+ || die $DBI::errstr;
+
+ my $analysisMode = returnHybridCaptureType($bed);
+ print " INFO: Mode: $analysisMode\n";
+
+ ######################
+ #	Fetching bams     #
+ ######################
+
+ our @bams;
+ our @controlBams;
+ our @caseBams;
+ my @multiple;
+ my $failedBam = 0;
+
+ if ($doCaseControl) {
+
+	# Getting control bams
+	@controlBams = glob("$controls/*.bam");
+	foreach my $bam (@controlBams) {
+		print"$bam\n";
+
+		if ($samtools_version > 1.5) {
+			# From samtools specs: By default quickcheck will emit a warning message if and only if a file fails the checks,
+			my $quickCheck = `$samtools quickcheck $bam`; 
+			chomp $quickCheck;
+			if ($quickCheck) {
+				print " ERROR: $bam is truncated\n";
+				exit;
+			}
+		}
+		my $sampleName  = basename($bam);
+		my $samplePath  = $bam;
+		$sampleName=~s/.bam//;
+		$sampleHash{$sampleName}{CONTROL} = 1;
+	}
+
+	# Getting case bams
+	@caseBams = glob("$cases/*.bam");
+	foreach my $bam (@caseBams) {
+
+		if ($samtools_version > 1.5) {
+			# From samtools specs: By default quickcheck will emit a warning message if and only if a file fails the checks,
+			my $quickCheck = `$samtools quickcheck $bam`; 
+			chomp $quickCheck;
+			if ($quickCheck) {
+				print " ERROR: $bam is truncated\n";
+				exit;
+			}
+		}
+
+		my $sampleName  = basename($bam);
+		my $samplePath  = $bam;
+		$sampleName=~s/.bam//;
+
+		$sampleHash{$sampleName}{CASE} = 1;
+	}
+
+	# All bams
+	@bams = (@controlBams, @caseBams);
+	if (!@bams) {
+		print " ERROR: no input bams were introduced\n";
+		exit;	
+	}
+ }
+ elsif ($doPooled) {
+	if ( -d $input ) {
+		@bams = glob ("$input/*.bam");
+		if (!@bams) {
+			print " ERROR: no input bams were introduced\n";
+			exit;
+		}
+		foreach my $bam (@bams) {
+			if (-z $bam) {
+				print " ERROR: $bam is empty.\n";
+				$failedBam = 1;
+				exit;
+			}
+			elsif ($samtools_version > 1.5) {
+				# From samtools specs: By default quickcheck will emit a warning message if and only if a file fails the checks,
+				my $quickCheck = `$samtools quickcheck $bam`; 
+				chomp $quickCheck;
+				if ($quickCheck) {
+					print " ERROR: $bam is truncated\n";
+					exit;
+				}
+			}
+			my $sampleName  = basename($bam);
+			my $samplePath  = $bam;
+			$sampleName=~s/.bam//;
+			# In pooled mode, all samples are treated as cases
+			$sampleHash{$sampleName}{CASE} = 1;
+			$sampleHash{$sampleName}{CONTROL} = 0;
+		}
+	}	
+	# If multiple BAMs on command line
+	@multiple = split (",", $input);
+	if (@multiple > 1) {
+		@bams = @multiple;	
+	}
+	# If input is a list of bams
+	if ( -f $input ) {
+		open (IN, "<$input") || die " ERROR: Cannot open $input\n";	
+		while (my $line=<IN>) {
+			chomp $line;
+			my @tmp = split (/\t/, $line);
+			if (@tmp > 1) {
+				print "\nERROR: $input file list must contain a single sample PATH per line\n";
+				exit;
+			}
+			push @bams, $line;
+		}
+		close IN;
+	}
+ }
+ our $nSamples = scalar @bams;
+
+ if (!@bams) {
+	print "\nERROR: no BAM files were found on $input directory\n"; exit;
+ }
+
+ ##########################################
+ #	Validate ROI file format consistency  #
+ ##########################################
+ ROIvalidator::validate();
+ my $str = `$cat $bed | $sort -V`;
+ chomp $str;
+ our @ROIarray = split (/\n/, $str);
+
+ #################################################################################################################
+ #	Checking reference format and selecting appropriate filtering files for centromeric and repetitive sequences  #
+ #################################################################################################################
+ our ($hasChr, $mappTrack, $centromeres, $hg19Track, $genomePatches, $intronFile ) = checkChrFormat($bams[0]);
+
+ #####################################################################
+ #     Create intronic bed. For now just applicable for gene panels  #
+ #     GOAL: Find exons that are very close (<200bp)                 #
+ #####################################################################
+ if ($analysisMode eq 'gene-panel' && $doExtraction) {
+	#if ( !-e "$outDir/SHORT_INTRONS/mappability_intronic.bed") { 
+		print YELLOW "\n INTRON ANALYSIS\n", RESET;  
+		print " INFO: Extracting short (<200bp) intronic sequences\n";
+		Intron::Analyze();
+	#}
+ }
+
+ ###################################################
+ #    Initializing sample and a GC global hashes   # 
+ ###################################################
+ my $i = 0;
+ foreach my $bam( @bams ) {
+
+	my $sampleName  = basename($bam);
+	my $samplePath  = $bam;
+	$sampleName=~s/.bam//;
+
+	# Creating sample directory
+	mkdir "$outDir/ON_TARGET/$sampleName";
+	mkdir "$outDir/OFF_TARGET/$sampleName";
+
+	# Initializing GC hash
+	for (my $i = 0;$i<=100; $i++) {
+	   $GC{$sampleName}{$i}{ARR_COUNTS}     = undef;
+	   $GC{$sampleName}{$i}{MEDIAN_COUNTS}  = undef;
+	   $GC{$sampleName}{$i}{ARR_COV}        = undef;
+	   $GC{$sampleName}{$i}{MEDIAN_COV}     = undef;
+
+	   $GC{$sampleName}{$i}{ARR_COUNTS_X}   = undef;
+	   $GC{$sampleName}{$i}{MEDIAN_COUNTS_X}= undef;
+	   $GC{$sampleName}{$i}{ARR_COV_X}      = undef;
+	   $GC{$sampleName}{$i}{MEDIAN_COV_X}   = undef;
+	}
+  
+	# Initializing Sample hash
+	$sampleHash{$sampleName}{PATH} = $bam;
+	$sampleHash{$sampleName}{ROI}         = undef;
+	$sampleHash{$sampleName}{MEANCOUNTS}  = undef;
+	$sampleHash{$sampleName}{MEANCOV}     = undef;
+	$sampleHash{$sampleName}{MEDIANCOUNTS}= undef;
+	$sampleHash{$sampleName}{ARR_COUNTS}  = undef;
+	$sampleHash{$sampleName}{PERFORM_OFFTARGET} = "yes";
+
+	# ChromosomeX
+	$sampleHash{$sampleName}{MEANCOVX}    = undef;
+	$sampleHash{$sampleName}{MEANCOUNTSX} = undef;
+	$sampleHash{$sampleName}{TOTALREADS_ONTARGET_X} = undef;
+	$sampleHash{$sampleName}{TOTALREADS_OFFTARGET_X} = undef;
+
+	$sampleHash{$sampleName}{TOTALREADS}     = undef;
+	$sampleHash{$sampleName}{READSONTARGET}  = undef;
+	$sampleHash{$sampleName}{READSOFFTARGET} = undef;				
+	$sampleHash{$sampleName}{MEANISIZE}      = undef;	
+	$sampleHash{$sampleName}{SDISIZE}        = undef;
+	$sampleHash{$sampleName}{OFFTARGETBIN}   = 15000;	
+	$sampleHash{$sampleName}{OFFTARGETMEDIAN}= undef;
+	$sampleHash{$sampleName}{SNPVCF}         = "$input/$sampleName.vcf" if $input;
+    $sampleHash{$sampleName}{BAF_ONTARGET}   = "$outDir/BAF_DATA/$sampleName.baf_segment.bed";
+    $sampleHash{$sampleName}{BAF_OFFTARGET}  = "$outDir/BAF_DATA/$sampleName.baf_segment.bed";
+    $sampleHash{$sampleName}{BAF}            = "$outDir/BAF_DATA/$sampleName.baf_segment.bed";
+
+	$i++;
+ }
+
+ #########################
+ #	Breakpoint analysis  #
+ #########################
+ if ($doBreakpoint) {
+
+  	 print YELLOW "\n Breakpoint SV analysis\n", RESET;  
+
+	 foreach my $bam( @bams ) {
+
+		# Test if bam exists
+		if (!-e $bam) {
+			print " ERROR: $bam does not exist\n";
+			exit;
+		}
+		my $sampleName  = basename($bam);
+		my $samplePath  = $bam;
+		$sampleName=~s/.bam//;
+
+		#my $pid = $pm -> start() and next; 
+		#if (!-e "$outDir/ON_TARGET/$sampleName/$sampleName.breakpoints.vcf") {
+			print " INFO: Analyzing breakpoints from sample $sampleName\n";
+			Breakpoint::AnalyzeWES($bam, $genome, $outDir, $sampleName, 3, 10, 3);
+		#}
+		#else {
+		#	print " INFO: skipping breakpoint detection. Results are already available\n";
+		#}
+	   	#$pm->finish;
+		#print " INFO: Done with $sampleName\n";
+	 }
+	 #$pm->wait_all_children;
+ }
+
+ ################################################################
+ #    Extracting:  a) Mappability and %GC                       #
+ #	               b) read counts and coverage 			        #
+ #		           c) Off-target bin size calculation           #
+ ################################################################
+
+if ( readDepthIsInvolved() ) {
+	print YELLOW "\n READ DEPTH ANALYSIS\n", RESET;  
+}
+ if ($doExtraction) {
+
+ 	print " INFO: Extracting On-target Mappability\n";
+ 	Extract::getMappability($bed, "ontarget", $ontargetDir, \%ontargetHash);
+
+	if ( ( ($analysisMode eq 'exome') && ( !-e "$ontargetDir/$outName.ReadCounts.bed" && !-e "$ontargetDir/$outName.ReadCounts.bed.gz" ) ) 
+		|| ($analysisMode eq 'gene-panel' && !-e "$ontargetDir/$outName.ReadCounts.bed.gz" && !-e "$ontargetDir/$outName.Coverages.bed.gz") ) {
+
+		print " INFO: Performing On-target read depth extraction\n";
+		if ($analysisMode eq 'gene-panel') {
+			$cmd = "$targetDepth -i $input -o $ontargetDir -n $outName -g $genome -b $bed -c -d -t $threads $wverb";
+			print "$cmd\n" if $::verbose;
+			system ($cmd);
+		}
+		elsif ($analysisMode eq 'exome') {
+			$cmd = "$targetDepth -i $input -o $ontargetDir -n $outName -g $genome -b $bed -c -t $threads $wverb";
+			print "$cmd\n" if $::verbose;
+			system ($cmd);
+		}
+		if (!-e "$ontargetDir/summary_metrics.log" && !-e "$outDir/summary_metrics.log") {
+			print " ERROR: non-existent $ontargetDir/summary_metrics.log\n"; exit;
+		}
+		elsif (-e "$ontargetDir/summary_metrics.log" ) {
+			move("$ontargetDir/summary_metrics.log", "$outDir");
+		}
+	}
+	else {
+		print " INFO: on-target read death extraction. All files are already available\n";
+	}
+	if ($doOfftarget) {
+
+		print " INFO: Creating off-target bins\n";
+		Offtarget::preProcess($bed, $outDir, $offtargetDir); 
+
+		# Removing outlier peaks using MACS2
+		Offtarget::removePeaks($bed, $outDir, $offtargetDir); 
+		
+		# Creating sample-specific bins
+		Offtarget::createBins($bed, $outDir, $offtargetDir); 
+		
+		# Extract off-target reads counts
+		Extract::extractOfftargetCounts($offtargetDir);
+	}
+ }
+
+ if (-e "$ontargetDir/summary_metrics.log" && !-e "$outDir/summary_metrics.log") {
+	move("$ontargetDir/summary_metrics.log", "$outDir");
+ }
+
+Utils::compressFile("$ontargetDir/$outName.ReadCounts.bed");
+Utils::compressFile("$ontargetDir/$outName.Coverages.bed");
+
+# Getting sample info
+foreach my $sample ( sort keys %sampleHash ) {
+
+	my $str = `$grep '$sample' $outDir/summary_metrics.log` if -s "$outDir/summary_metrics.log";
+	chomp $str if $str;
+	if (!$str) {
+		print " INFO: No read depth metrics found. Exiting\n";
+		exit;
+	}
+
+	my @arrStr = split (/\t/, $str);
+
+	$sampleHash{$sample}{TOTALREADS_ONTARGET}   = $arrStr[1];
+	$sampleHash{$sample}{READSONTARGET}         = $arrStr[2];
+	$sampleHash{$sample}{TOTALREADS_ONTARGET_X} = $arrStr[3];
+	$sampleHash{$sample}{ROI_ONTARGET}          = $arrStr[4];
+	$sampleHash{$sample}{MEANCOV_ONTARGET}      = $arrStr[5];
+	$sampleHash{$sample}{MEANCOUNTS_ONTARGET}   = $arrStr[6];
+	$sampleHash{$sample}{MEANISIZE}             = $arrStr[7];
+	$sampleHash{$sample}{SDISIZE}               = $arrStr[8];
+	$sampleHash{$sample}{MEANCOVX_ONTARGET}     = $arrStr[9];
+	$sampleHash{$sample}{MEANCOUNTSX_ONTARGET}  = $arrStr[10];
+	$sampleHash{$sample}{REFERENCE}             = undef;
+	$sampleHash{$sample}{SEGMENT_FILE}          = "$ontargetDir/segmented.$sample.bed";
+
+	$sampleHash{$sample}{ONOFFTARGET_MEAN_RATIO}  = undef;
+	$sampleHash{$sample}{ONOFFTARGET_SD_RATIO}    = undef;
+}
+
+ ################################################################
+ #    Count/Coverage normalization of GC, and exon length       #
+ ################################################################
+
+ if ($doNormalization) {
+
+	# On-target data 
+	if ($normalizationMethod eq 'median') {
+		print " INFO: Performing on-target median normalization\n";
+		Normalize::normalizeOntarget($ontargetDir, $analysisMode, "ontarget", \%ontargetHash);
+	}
+	elsif ($normalizationMethod eq 'PCA') {
+		print " INFO: Performing on-target PCA noise reduction\n";
+		Normalize::readRawDepth($ontargetDir, \%ontargetHash, "ontarget");
+		PCAnorm::doPCA("$ontargetDir/$outName.ReadCounts.bed", $ontargetDir, \%ontargetHash );
+		Normalize::normalizePerBase($ontargetDir);
+	}
+
+	# Create database only if it does not exists or empty
+	if (!-s $database || !-e $database) {
+		Reference::createDB("$ontargetDir/$outName.NormalizedCounts.bed.gz", "created");
+	}
+	# Export DB references to plain txt
+	Reference::exportDB();
+
+	# Merge pooled normalized RD with sqlite database
+	Reference::mergeRunWithDB();
+
+	# Get pair-wise correlation and heatmap
+	Reference::getCorrAndPlot();
+
+	# Build references
+	BuildReference::createReferences();
+
+	# Update sqlite database
+	Reference::updateDB();
+
+	# Render scatterplot only if ratios are available
+	if ( $plotScatter && -e "$ontargetDir/$outName.Ratios.bed.gz" && !$doCalling ) {
+		print " INFO: Plotting genome-wide on-target segmentation\n";
+		Plot::plotScatter($ontargetDir, $analysisMode, "on-target");
+	}
+
+	# Off-target data analysis
+	if ($doOfftarget) {
+		
+		# Normalized off-target data by GC
+		print " INFO: Performing off-target normalization\n";
+		Normalize::normalizeOfftarget($offtargetDir);			
+
+		# Render scatterplot only if ratios are available
+		if ( $plotScatter && -e "$offtargetDir/$outName.Ratios.bed" && !$doCalling ) {
+			print " INFO: Plotting genome-wide off-target segmentation\n";
+			Plot::plotScatter($offtargetDir, $analysisMode, "off-target");
+		}
+	}
+ }
+ 
+ if ($doCalling) {
+	
+	print " INFO: Building references from a pool of samples\n";
+	Reference::clusterBatches();
+
+	print " INFO: Performing on-target Ratio calculation\n";
+	Ratio::calculateOnTargetRatios($ontargetDir, "ontarget");
+
+	print " INFO: Performing on-target segmentation\n";
+	Segment::CBS($ontargetDir, "ontarget", $analysisMode);
+	
+	########################################
+	#	Importing VCFs  to calculate VAF   #
+	########################################
+
+	if ($doVAF) {
+		foreach my $sample ( sort keys %sampleHash ) {
+
+			my $pid = $pm -> start() and next;
+
+			if (-e "$sampleHash{$sample}{SNPVCF}") {
+				print " INFO: Importing $sample\'s SNV VCF\n";
+			}
+			else {
+				if ($doVAF) {
+					if ($doSamtools) {
+						if ($samtools && $bcftools) {
+							VAF::varCallSamtools($sampleHash{$sample}{PATH}, $sample);
+						}
+					}
+					if ($doFreebayes) {
+						if ($freebayes) {
+							VAF::varCallFreebayes($sampleHash{$sample}{PATH}, $sample);
+						}
+					}
+				}
+			}
+			$pm->finish; 
+		}
+		$pm->wait_all_children;
+	#Todo: some sort of validation function for calls with Germline/Somatic tags
+		VAF::selectVariants();
+	}
+
+	print " INFO: Calling on-target CNVs\n";
+	CallCNV::call($ontargetDir, $analysisMode, "on-target", $bed, "$ontargetDir/$outName.Ratios.bed.gz");
+	
+	if ( $plotScatter ) {
+		print " INFO: Plotting genomewide on-target segmentation\n";
+		Plot::plotScatter($ontargetDir, $analysisMode, "on-target");
+	}
+
+	if ( $doOfftarget ) {
+
+		print " INFO: Performing off-target Ratio calculation\n";
+		Ratio::calculateRatioOfftarget($offtargetDir);
+
+		print " INFO: Performing off-target segmentation\n";
+		Segment::CBS($offtargetDir, "off-target", $analysisMode);
+
+		print " INFO: Calling off-target CNVs\n";
+		CallCNV::call($offtargetDir, $analysisMode, "off-target", $off_bed, "$offtargetDir/$outName.Ratios.bed.gz");
+
+		if ( $plotScatter ) {
+			print " INFO: Plotting genome-wide off-target segmentation\n";
+			Plot::plotScatter($offtargetDir, $analysisMode, "off-target");
+		}
+
+	    print " INFO: Performing Mixed Ratio calculation\n";
+		Ratio::mergeOnOffRatios($ontargetDir, $offtargetDir);
+
+		print " INFO: Performing Mixed segmentation\n";
+		Segment::CBS($outDir, "off-target", $analysisMode);
+
+		if ( $plotScatter ) {
+			print " INFO: Plotting genome-wide On+Off-target segmentation\n";
+			Plot::plotScatter($outDir, $analysisMode, "off-target");
+		}
+
+		print " INFO: Calling Mixed CNVs\n";
+		CallCNV::call($outDir, $analysisMode, "mixed", "None", "None");
+	}
+	# Outputting on-, off-, and mixed CNV calls at main output folder (outDir)
+	# Todo: UNify CNVs calls when there exists overlap between on and off-target.
+	mergeOnOfftargetCalls();
+ } 
+
+if ( $plotScatter ) {
+	print " INFO: Plotting genomewide On+Off-target segmentation\n";
+	Plot::plotScatter($outDir, $analysisMode, "off-target");
+}
+
+# Generate VCF 
+foreach my $sample ( sort keys %sampleHash ) {
+	next if $sampleHash{$sample}{CONTROL};
+	print " INFO: Generating VCF for $sample\n";
+	VCF::generate("$outDir/ON_TARGET/$sample.CNV.bed") if -e "$outDir/ON_TARGET/$sample.CNV.bed";
+	#VCF::generate("$outDir/OFF_TARGET/$sample.CNV.bed");
+	VCF::generate("$outDir/$sample.CNV.bed") if -e "$outDir/$sample.CNV.bed";
+}
+
+# Annotate filtering tags
+if ($doFilter) {
+	print " INFO: Adding Filter tags to VCFs\n";
+	foreach my $sample ( sort keys %sampleHash ) {
+		next if $sampleHash{$sample}{CONTROL};
+		HardFilter::filter("$outDir/ON_TARGET/$sample.CNV.vcf");
+		HardFilter::filter("$outDir/$sample.CNV.vcf");
+	}
+}
+
+if ($doAnnotate) {
+	print " INFO: Annotating VCFs with gnomAD\n";
+	foreach my $sample ( sort keys %sampleHash ) {
+		next if $sampleHash{$sample}{CONTROL};
+		Annotate::doAnnotation("$outDir/$sample.CNV.vcf");
+		Annotate::doAnnotation("$outDir/ON_TARGET/$sample.CNV.vcf");
+	}
+}
+
+# Creating HTML report for gene-panels.
+if ( $createReport ) {
+	print " INFO: Generating HTML report\n";
+	#vcf2HTML::createHTMLreport();	
+}
+
+my $json = JSON::MaybeXS->new(utf8 => 1, pretty => 1, sort_by => 1);
+my $json_output = $json->encode(\%analysisJson);
+
+open ( OUTJSON, ">", $HoF{JSON} ) || die " ERROR: Unable to open $HoF{JSON}\n";
+print  OUTJSON "$json_output\n";
+close OUTJSON;
+
+$dbh->disconnect();
+
+###############################
+sub mergeOnOfftargetCalls {
+
+	# Goal is to merge into a single file (at $outDir/) all calls made from at ON_TARGET, OFF_TARGET and mixed calls
+    foreach my $sample ( sort keys %sampleHash ) {
+		my $onTargetFile = "$outDir/ON_TARGET/$sample.CNV.bed";
+		my $offTargetFile= "$outDir/OFF_TARGET/$sample.CNV.bed";
+		my $mixedFile    = "$outDir/$sample.CNV.bed";
+
+		my @files;
+		push @files, $onTargetFile if -e $onTargetFile;
+		push @files, $offTargetFile if -e $offTargetFile;
+		push @files, $mixedFile if -e $mixedFile;
+
+		$cmd = "$cat @files | $sort -V | $uniq > $outDir/$sample.CNV.tmp.bed";
+		system $cmd if @files;
+
+		unlink($mixedFile);
+		rename "$outDir/$sample.CNV.tmp.bed", $mixedFile if -e "$outDir/$sample.CNV.tmp.bed";
+	}
+}
+
+###################
+sub autoSetNormalizationMethod {
+	my $default = shift;
+	# This functions sets the type of normalization given the total number of samples available:
+	# If less than 30 samples: median approach
+	# >= 30 samples: PCA approach
+	my $method = $default;
+
+	my $numSamples = scalar keys %sampleHash;
+	if ($default eq 'auto') {
+		if ($numSamples < 30) {
+			$method = "median";
+		}
+		else {
+			$method = "PCA";
+		}
+	}
+	return $method;
+}
+
+####################
+sub checkChrFormat {
+
+ my $bam = shift;
+ my $str = `$samtools view -H $bam | $grep 'SN'`;
+ chomp $str;
+ 
+ my $mapFile;
+ my $centromerFile;
+ my $hasChr;
+ my $intronFile;
+ my @tmpStr = split (/\t/, $str);
+ my $sn = $tmpStr[1];
+ my $assembly = $tmpStr[4];
+ if ($sn =~/chr/) {
+	$hasChr = "yes";
+	if ($assembly =~/GRCh38/ || $assembly =~/hg38/) {
+		$mapFile = "$dirname/../mappability/GRCh38.mappability.100mer.bedGraph.gz";
+		if (!-e $mapFile) {
+			print " ERROR: $mapFile was not found\n"; exit;
+		}
+		$centromerFile = "$dirname/../db/centromeres.hg38.chr.bed";
+		if (!-e $centromerFile) {
+			print " ERROR: $centromerFile was not found\n"; exit;
+		}
+		$chrFile  = "$dirname/../db/hg38.chr.sort.txt";
+		if (!-e $chrFile) {
+			print " ERROR: $chrFile was not found\n"; exit;
+		}
+		$genomePatches = "$dirname/../db/Patches_grch37_v13.chr.txt";
+		if (!-e $genomePatches) {
+			print " ERROR: $genomePatches was not found\n"; exit;
+		}
+		$intronFile = "$dirname/../db/hg19.ucsc.introns.chr.bed.gz";
+	}
+	else  {
+		$mapFile = "$dirname/../mappability/wgEncodeCrgMapabilityAlign100mer.chr.bedgraph.gz";
+		if (!-e $mapFile) {
+			print " ERROR: $mapFile was not found\n"; exit;
+		}
+		$centromerFile = "$dirname/../db/centromeres.chr.bed";
+		if (!-e $centromerFile) {
+			print " ERROR: $centromerFile was not found\n"; exit;
+		}
+		$chrFile  = "$dirname/../db/hg19.chr.sort.txt";
+		if (!-e $chrFile) {
+			print " ERROR: $chrFile was not found\n"; exit;
+		}
+		$genomePatches = "$dirname/../db/Patches_grch37_v13.chr.txt";
+		if (!-e $genomePatches) {
+			print " ERROR: $genomePatches was not found\n"; exit;
+		}
+		$intronFile = "$dirname/../db/hg19.ucsc.introns.chr.bed.gz";
+	}
+ }
+ else {
+	$hasChr = "no";
+	if ($assembly =~/GRCh38/ || $assembly =~/hg38/) {
+		$mapFile = "$dirname/../mappability/GRCh38.mappability.100mer.bedGraph.gz";
+		if (!-e $mapFile) {
+			print " ERROR: $mapFile was not found\n"; exit;
+		}
+		$centromerFile = "$dirname/../db/centromeres.hg38.chr.bed";
+		if (!-e $centromerFile) {
+			print " ERROR: $centromerFile was not found\n"; exit;
+		}
+		$chrFile  = "$dirname/../db/hg38.chr.sort.txt";
+		if (!-e $chrFile) {
+			print " ERROR: $chrFile was not found\n"; exit;
+		}
+		$genomePatches = "$dirname/../db/Patches_grch37_v13.txt";
+		if (!-e $genomePatches) {
+			print " ERROR: $genomePatches was not found\n"; exit;
+		}
+		$intronFile = "$dirname/../db/hg19.ucsc.introns.nochr.bed.gz";
+	}
+	else {
+		$mapFile = "$dirname/../mappability/wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz";
+		if (!-e $mapFile) {
+			print " ERROR: $mapFile was not found\n"; exit;
+		}
+		$centromerFile = "$dirname/../db/centromeres.nochr.bed";
+		if (!-e $centromerFile) {
+			print " ERROR: $centromerFile was not found\n"; exit;
+		}
+		$chrFile  = "$dirname/../db/hg19.nochr.txt";
+		if (!-e $chrFile) {
+			print " ERROR: $chrFile was not found\n"; exit;
+		}
+		$genomePatches = "$dirname/../db/Patches_grch37_v13.txt";
+		if (!-e $genomePatches) {
+			print " ERROR: $genomePatches was not found\n"; exit;
+		}
+		$intronFile = "$dirname/../db/hg19.ucsc.introns.nochr.bed.gz";
+	}
+ }
+
+ $str = `$cat $chrFile`;
+ chomp $str;
+ @tmpStr = split (/\n/, $str);
+ %ChromosomeLengths = map {  (split /\t/,  $tmpStr[$_])[0] => (split /\t/, $tmpStr[$_])[1] } 0..$#tmpStr;
+ 
+ foreach my $chr ( keys %ChromosomeLengths)	{
+	$genomeLength+=$ChromosomeLengths{$chr};
+ }
+
+ return ($hasChr, $mapFile, $centromerFile, $chrFile, $genomePatches, $intronFile);
+}
+
+###############################
+sub returnHybridCaptureType {
+
+	my $bed = shift;
+
+	# Checking the number of exons to decide whether to analyze exome or gene panels
+	my $analysisMode = "gene-panel";
+
+	my $nRegions = `$cat $bed | $wc -l | $awk '{ print \$1}'`;
+	chomp $nRegions;
+
+	if ($nRegions > 10000) {
+		$analysisMode = "exome";
+	}
+
+	# return either gene-panel or exome
+	return $analysisMode;
+}
+###############################
+sub readDepthIsInvolved {
+	if ($doNormalization || $doExtraction || $doOfftarget || $buildReference) {
+		return 1;
+	}
+	else {
+		return 0;
+	}
+}
+###############################
+sub useControls {
+
+}
+###############################
+sub Help {
+	print "\n
+Usage:  ./GRAPES wes <command> [OPTIONS] 
+Command:
+	all	           Perform all steps below
+	breakpoint     Perform Breakpoint analysis
+	extract        Extract Depth, GC and Mappability percentages
+	build-ref      Build a reference from a pool of samples
+	useControlDir  Create a baseline from a control set
+	normalize      Normalize samples
+	callCNV        Perform Copy Ratio and segmentation
+	plotBiases	   Plot read depth bias reduction before and after normalization
+	plotScatter    Plot genome-wide cnv scatter plot
+	reportPDF	   Write results on a PDF (Only for gene panels)
+
+
+Params:
+	-i		STRING	 Input BAM/s. Can be a file with a list of BAMs.
+	-o		STRING   Output directory.
+	-g		STRING	 Genome reference in FASTA format.
+	-b		STRING	 BED regions
+	-t		INT	     Number of CPUs	
+	-minCorrelation	 Minimum pairwise-correlation to build a reference set (default = 0.90)
+	-minSampleSizeCluster	Minimum pairwise-correlation to build a reference set (default = 15)
+	-maxSampleSizeCluster	Minimum pairwise-correlation to build a reference set (default = 4)
+	-lowerDelCutoff	Lower-bound deletion cuttof ratio (default = 0.35)
+	-upperDelCutoff	Upper-bound deletion cuttof ratio (default = 0.62)
+	-lowerDupCutoff	Lower-bound duplication cuttof ratio (default = 1.299)
+	-minSizeSV	Minimum SV size to report a breakpoint call (default = 15)\n\n";
+ exit;
+}
+
+

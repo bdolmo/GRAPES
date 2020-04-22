@@ -1,0 +1,72 @@
+
+Introduction
+============
+
+What is TargetDepth?
+--------------------
+
+TargetDepth is a simple program to extract depth metrics from a BAM or multiple BAMS.
+It is designed to provide a more streamlined way to obtain coverage and count metrics than BEDtools.
+
+Installation
+============
+
+Building and running TargetDepth from source requires a GNU-like environment with 
+
+1. GCC
+2. GNU Make
+3. Perl 5.14 or later
+4. Boost library. Which can be downloaded at Boost: http://www.boost.org (also available as package libboost-dev for Ubuntu and Debian)
+
+optional:
+---------
+- it is required to have SAMtools on PATH to obtain the toal number of reads.
+
+CPAN dependencies
+-----------------
+- Parallel::ForkManager
+
+Usage
+=====
+TargetDepth can be used in two ways:
+------------------------------------
+
+ 1. (Recommended) Use the perl targetDepth.pl which provides a useful interface and some nice properties:
+	- Multi-core support. Improves up to 4 CPUs.
+	- BAMs can be fed by multiple ways:
+		option1: introducing input directory. All bam files present will be analyzed.
+		option2: Introduce comma-separated bams (-i BAM1,BAM2..).
+		option3: Specify bam paths in a text file (one path per line).
+	- More compact output files
+
+ 2. Use the binary ./TargetDepth. Some limitations are:
+	- No multithreading support
+	- No input directory option for catching BAM files.
+
+
+License
+=======
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+Copyright (c) 2017-2018 Bernat del Olmo
+
+See included file LICENSE for details.
+
+Contact
+======
+
+If you have questions, comments, suggestions, bug reports, etc.
+please send them to:
+
+Bernat del Olmo Cabestré
+Gencardio - IDIBGI
+bdelolmo@gencardio.com
+
