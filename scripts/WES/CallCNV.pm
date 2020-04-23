@@ -860,11 +860,12 @@ sub getCiposCiend {
 		
 		# Check if single CNV has enough quality to be reported as a candidate
 		my $do_output = 0;
+		my $cnv_type = '.';
+
 		if ($s2nControls > 8 && $s2nTest > 9 && abs($tmpZscore) >= $::minZscore &&
 		   ($testSampleRatio < $::sampleHash{$test_sample}{LOWER_LIMIT} ||
 		   $testSampleRatio > $::sampleHash{$test_sample}{UPPER_LIMIT})){
 
-			my $cnv_type;
 			if ($testSampleRatio >= $::lowerDelCutoff && $testSampleRatio < $::upperDelCutoff) {
 				$cnv_type = "DEL";
 				$do_output = 1;

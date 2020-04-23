@@ -1,6 +1,8 @@
-FROM ubuntu:14.04
+FROM ubuntu:18.04
 
 MAINTAINER Bernat del Olmo bdelolmo@gencardio.com
+
+ENV DEBIAN_FRONTEND=noninteractive 
 
 # install required packages
 RUN apt-get update && apt-get install -y \
@@ -15,6 +17,7 @@ RUN apt-get update && apt-get install -y \
     libboost-program-options-dev \
     libboost-system-dev \
     libboost-filesystem-dev \
+    libboost-all-dev \
     libbz2-dev \
     liblzma-dev \
     python3-pip \
@@ -23,9 +26,7 @@ RUN apt-get update && apt-get install -y \
     r-base r-base-core r-recommended \
     samtools \
     tabix \
-    bgzip \
-    gnuplot \
-    #bedtools
+    gnuplot
 
 RUN apt-get -y install wget
 
@@ -37,6 +38,8 @@ RUN cpanm Parallel::ForkManager \
     Statistics::Descriptive \
     Sort::Key::Natural \
     Chart::Gnuplot \
+    JSON::MaybeXS \
+    DBD::SQLite
 
 #RUN pip install --upgrade pip
 #RUN pip install numpy
@@ -62,4 +65,4 @@ WORKDIR /root/
 ENV PATH="/opt/GRAPES:${PATH}"
 
 # by default /bin/sh is executed
-CMD ["/bin/sh"]
+CMD ["GRAPES"]
