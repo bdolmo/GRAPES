@@ -83,7 +83,7 @@ sub annotateGnomad {
                 foreach my $field (@popDefaults) {
                     
                     my $outField = $headerVCF{$field}{DESCRIPTION};
-                    $outField =~s/EVIDENCE/gnomADevidence/;
+                    $outField =~s/EVIDENCE/gnomAD_SV_method/;
 
                     print VCF "$outField\n";
                 }
@@ -125,14 +125,14 @@ sub annotateGnomad {
             }
             
             my $annot = join(";", @gathered);
-            $annot =~s/EVIDENCE/gnomADevidence/;
+            $annot =~s/EVIDENCE/gnomAD_SV_method/;
 
             my $extendedVar = join("\t", @tmp[0..7]) . ";" . $annot . join ("\t", @tmp[8..@tmp-1]);
 
             $seenVar{$extendedVar}++;
             next if $seenVar{$extendedVar} > 1;
 
-            print VCF "$line;$annot\n";
+            print VCF join("\t", @tmp[0..7]) . ";" . $annot ."\t". $tmp[8] . "\n";
         }
     }
     close IN;

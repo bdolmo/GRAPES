@@ -242,7 +242,7 @@ sub getCiposCiend {
   	@segmentedFiles    = grep (!-z $_, @segmentedFiles);
 
 	if (!@segmentedFiles) {
-		print " WARNING: Skipping CNV on $analysis data. No segmented files were detected\n"; 
+		print " WARNING: Skipping CNV on $type data. No segmented files were detected\n"; 
 		return 1;
 	}
 	my $numx = 0;
