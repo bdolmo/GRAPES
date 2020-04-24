@@ -111,13 +111,11 @@ sub convertMosdepth2Grapes {
 	$name =~s/.offtarget_counts.bed/.offtarget_joined_counts.bed/;
 	my $output = "$outputDir/$name";
 
-	open (IN, "<", $countFile) || die " ERROR: unable to open $countFile\n";
-
 	my $min = 10e20;
 	my $max = 0;
-
 	my %seen = ();
 
+	open (IN, "<", $countFile) || die " ERROR: unable to open $countFile\n";
 	while (my $line=<IN>) {
 		chomp $line;
 		my @tmp = split (/\t/, $line);

@@ -155,13 +155,17 @@ sub createBins {
  # Creating merged & padded offtarget peak file for all the samples
  my @narrowPeaksFiles = glob ("$offtargetDir/*narrowPeak.format.bed");
 
- # Returning if no peaks have been detected
  if (!@narrowPeaksFiles) {
-	 return 0;
+	foreach my $sample ( sort keys %::sampleHash) {
+		$::sampleHash{$sample}{READSOFFTARGET} = 0;
+		$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'no';
+	}
+	return 1;
  }
 
+
  # Adding some padding coordinates at each peak identified
- my $cmd = "$::cat $offtargetDir/*narrowPeak.format.bed | $::sort -V -u | $::awk '{if (\$2<\$3) {print \$1\"\t\"\$2-400\"\t\"\$3+400\"\t\"\"mergedPaddedNarrowPeaks\"} else if (\$2>\$3) {print \$1\"\t\"\$2+400\"\t\"\$3-400\"\t\"\$4\"\t\"\"mergedPaddedNarrowPeaks\"}}' - | $::grep -v '\_'> $offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed";  
+ my $cmd = "$::cat @narrowPeaksFiles | $::sort -V -u | $::awk '{if (\$2<\$3) {print \$1\"\t\"\$2-400\"\t\"\$3+400\"\t\"\"mergedPaddedNarrowPeaks\"} else if (\$2>\$3) {print \$1\"\t\"\$2+400\"\t\"\$3-400\"\t\"\$4\"\t\"\"mergedPaddedNarrowPeaks\"}}' - | $::grep -v '\_'> $offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed";  
  system($cmd);
 
  # Deleting inconsistent coordinate entries when poiting out of the chromosome length
@@ -195,30 +199,37 @@ sub createBins {
 
  my @offbams = glob("$offtargetDir/*bam");
  open (TMP, ">", "$::outDir/offtarget_info.tmp.txt") || die " ERROR: Unable to open $::outDir/offtarget_info.tmp.txt\n";
- foreach my $bam ( @offbams ) {
+ #foreach my $bam ( @offbams ) {
 
-	#my $counts = Utils::readCountsFromBamIdx($bam);
-	my $counts = `$::samtools view -c $bam -L $offtargetDir/offtarget_centromeres_patches_peaks_negative.bed`;
-	chomp $counts;
+ foreach my $sample ( sort keys %::sampleHash) {
 
-	my $sample = basename($bam);
-	$sample =~s/.offTarget.bam//;
-	
-	# Defnining offtarget window size based on this empirically derived rule. 
-	# May be worth to add a more advanced method: https://academic.oup.com/bioinformatics/article/30/13/1823/2422194
-	$::sampleHash{$sample}{OFFTARGETBIN}   = $counts > 0 ? int ( (4000000 *150000)/$counts ) : 10e6; 
-	$::sampleHash{$sample}{READSOFFTARGET} = $counts;
+    my $bam = "$offtargetDir/$sample.offTarget.bam";
 
-	print TMP "$sample\t$::sampleHash{$sample}{READSOFFTARGET}\t$::sampleHash{$sample}{OFFTARGETBIN}\n";
+	if (-e $bam ) {
+		#my $counts = Utils::readCountsFromBamIdx($bam);
+		my $counts = `$::samtools view -c $bam -L $offtargetDir/offtarget_centromeres_patches_peaks_negative.bed`;
+		chomp $counts;
+		
+		# Defnining offtarget window size based on this empirically derived rule. 
+		# May be worth to add a more advanced method: https://academic.oup.com/bioinformatics/article/30/13/1823/2422194
+		$::sampleHash{$sample}{OFFTARGETBIN}   = $counts > 0 ? int ( (4000000 *150000)/$counts ) : 10e6; 
+		$::sampleHash{$sample}{READSOFFTARGET} = $counts;
 
-	my $countsHuman = Utils::number2human($counts);
-	my $binSizeHuman= Utils::number2human($::sampleHash{$sample}{OFFTARGETBIN});
+		print TMP "$sample\t$::sampleHash{$sample}{READSOFFTARGET}\t$::sampleHash{$sample}{OFFTARGETBIN}\n";
 
-	print " INFO: $sample off-target reads: $countsHuman\toff-target bin size: $binSizeHuman\n";
+		my $countsHuman = Utils::number2human($counts);
+		my $binSizeHuman= Utils::number2human($::sampleHash{$sample}{OFFTARGETBIN});
 
-	my $sample_offtarget_bed = "$offtargetDir/$sample.offtarget.bed";
-	
-	createPseudowindows($outDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN}, $sample_offtarget_bed);
+		print " INFO: $sample off-target reads: $countsHuman\toff-target bin size: $binSizeHuman\n";
+
+		my $sample_offtarget_bed = "$offtargetDir/$sample.offtarget.bed";
+		
+		createPseudowindows($outDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN}, $sample_offtarget_bed);
+	}
+	else {
+		$::sampleHash{$sample}{READSOFFTARGET} = 0;
+		$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'no';
+	}
 
  }
  #$::pm->wait_all_children;
@@ -242,7 +253,6 @@ sub createPseudowindows {
 
  #Goal here is to create a sample-specific off-target BED regions file
  #Author: Jesús Matés Ramírez, PhD.
-
  my $outDir  = shift;
  my $sample  = shift; 
  my $binsize = shift;

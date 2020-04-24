@@ -23,6 +23,7 @@ use List::MoreUtils qw(uniq);
 
 		# Skipping ratio calculation when not applicable
 		next if $::sampleHash{$sample}{PERFORM_OFFTARGET} eq "no";
+		next if !-e "$offtargetDir/$sample.normalized.bed.gz";
 
 		open NORMALIZED, "$::zcat $offtargetDir/$sample.normalized.bed.gz |";
 		open RATIOS, ">", "$offtargetDir/$sample.ratios.txt";
@@ -179,7 +180,6 @@ use List::MoreUtils qw(uniq);
 				push @{$::sampleHash{$sample}{REF_ID}}, $index;
 			}
 		}
-		print"$sample\t@{$::sampleHash{$sample}{REF_ID}}\n";
    }
 
    open (TOPLOTRATIOS, ">", "$inputDir/toplotratios.bed") || die " ERROR: Cannot open $inputDir/toplotratios.bed\n";
@@ -283,8 +283,10 @@ use List::MoreUtils qw(uniq);
 
    my $j = 7;
    my $k = 8;
+
    # Splitting Ratios file for segmentation and deleting outlier ratios
    foreach my $sample (	sort keys %::sampleHash ) {
+
 	   	# Skipping database references 
 		if (exists $::referenceHash{$sample}) {
 			next;

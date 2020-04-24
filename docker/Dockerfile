@@ -46,6 +46,14 @@ RUN cpanm Parallel::ForkManager \
 RUN apt-get -y install macs
 #RUN pip install MACS2
 
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("DNAcopy")'
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("aroma.light")'
+RUN R -e "install.packages('ggplot2',dependencies=TRUE, repos='http://cran.rstudio.com/')" 
+RUN R -e "install.packages('RColorBrewer',dependencies=TRUE, repos='http://cran.rstudio.com/')" 
+RUN R -e "install.packages('reshape2',dependencies=TRUE, repos='http://cran.rstudio.com/')" 
+RUN R -e "install.packages('egg',dependencies=TRUE, repos='http://cran.rstudio.com/')" 
+RUN R -e "install.packages('PSCBS',dependencies=TRUE, repos='http://cran.rstudio.com/')" 
+
 RUN cd /opt \
     && git clone https://github.com/arq5x/bedtools2.git \
     && cd bedtools2/ \
@@ -64,5 +72,5 @@ WORKDIR /root/
 # Add GRAPES to PATH
 ENV PATH="/opt/GRAPES:${PATH}"
 
-# by default /bin/sh is executed
+# by default GRAPES is executed
 CMD ["GRAPES"]
