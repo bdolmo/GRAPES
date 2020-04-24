@@ -35,6 +35,10 @@ if (!-e "$currentDir/db/gnomad") {
   mkdir "$currentDir/db/gnomad";
 }
 
+if (!-e "$currentDir/db/sqlite") {
+  mkdir "$currentDir/db/sqlite";
+}
+
 my $cut  = `which cut`;
 chomp $cut;
 if (!$cut) {
