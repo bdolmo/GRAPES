@@ -242,7 +242,8 @@ sub getCiposCiend {
   	@segmentedFiles    = grep (!-z $_, @segmentedFiles);
 
 	if (!@segmentedFiles) {
-		print " ERROR: No segmented files!\n"; exit;
+		print " WARNING: Skipping CNV on $analysis data. No segmented files were detected\n"; 
+		return 1;
 	}
 	my $numx = 0;
 
@@ -504,7 +505,7 @@ sub getCiposCiend {
 
 				next if abs($meanZscore) < $::minZscore;		
 				next if $meanSignal2Noise < 5;
-				print "$chr\t$start\t$End\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnvType;SVLEN=$size;GC=$meanGC;MAP=$meanMap;GENE=$affectedROIs;REGIONS=$nexons;RRD=$tmpLine[10];MADRD=$MAD;CN=$copyNumber;SNR=$meanSignal2Noise;ZSCORE=$meanZscore\n";
+				#print "$chr\t$start\t$End\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnvType;SVLEN=$size;GC=$meanGC;MAP=$meanMap;GENE=$affectedROIs;REGIONS=$nexons;RRD=$tmpLine[10];MADRD=$MAD;CN=$copyNumber;SNR=$meanSignal2Noise;ZSCORE=$meanZscore\n";
 				print OUTFILE "$chr\t$start\t$End\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnvType;SVLEN=$size;GC=$meanGC;MAP=$meanMap;GENE=$affectedROIs;REGIONS=$nexons;RRD=$tmpLine[10];MADRD=$MAD;CN=$copyNumber;SNR=$meanSignal2Noise;ZSCORE=$meanZscore\n";
 			}
 

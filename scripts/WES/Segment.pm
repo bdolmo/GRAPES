@@ -24,6 +24,7 @@ use Parallel::ForkManager;
 
 	   if ($type eq 'offtarget') {
 	   	next if $::sampleHash{$sample}{OFFTARGET_SD_RATIO} > 0.2;
+	   	next if $::sampleHash{$sample}{PERFORM_OFFTARGET} eq 'no';
 	   }
 
 	   push @ratios, "$inputDir/$sample.ratios.txt.gz" if -s "$inputDir/$sample.ratios.txt.gz";

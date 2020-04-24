@@ -333,6 +333,10 @@ print(\"INFO: PSCBS is already installed\n\")
     print R "if (!is.installed(\"reshape2\")){
 print(\"Installing reshape2:\n\"); install.packages(\"reshape2\", repos = \"http://cran.us.r-project.org\")
 }";
+    print R "else {
+print(\"INFO: reshape2 is already installed\n\")
+}\n";
+
     print R "if (!is.installed(\"egg\")){
 print(\"Installing egg:\n\"); install.packages(\"egg\", repos = \"http://cran.us.r-project.org\")
 }";

@@ -194,7 +194,7 @@ chomp $freebayes;
 
 if (!$freebayes) {
 	#do not exit
-	print " WARNING: freebayes was not found on PATH\n";
+	print " INFO: freebayes was not found on PATH. SAMtools will be used instead\n";
 }
 
 our $macs2 = `which macs2`;
