@@ -7,6 +7,7 @@ use Cwd;
 use Term::ANSIColor qw(:constants);
 use Parallel::ForkManager;
 use Statistics::Descriptive;
+use Sort::Key::Natural;
 use Chart::Gnuplot;
 use JSON::MaybeXS;
 use Data::Dumper;

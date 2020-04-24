@@ -42,7 +42,6 @@ sub appendOfftargetMetrics2Summary {
 				print TMP "$line\tOFFTARGET_READS\tOFFTARGET_BIN_SIZE\n";
 			}
 			else {
-				my $counts = $::sampleHash{$sample}{READSOFFTARGET};
 				print TMP "$line\t$::sampleHash{$sample}{READSOFFTARGET}\t$::sampleHash{$sample}{OFFTARGETBIN}\n";
 			}
 			$nLine++;
