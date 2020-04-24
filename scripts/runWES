@@ -275,7 +275,6 @@ our $createReport;
 our $minSizeSV = 15;
 our $maxSizeSV = 5000000;
 our $filterDiscordantOnly = "";
-#our $minOfftargetReads = 1e6;
 our $minOfftargetReads = 150000;
 our $minOfftargetSD = 0.2;
 our $PCAvariance = 0.7;
