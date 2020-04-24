@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y \
     r-base r-base-core r-recommended \
     samtools \
     tabix \
+    bcftools \
     gnuplot
 
 RUN apt-get -y install wget
