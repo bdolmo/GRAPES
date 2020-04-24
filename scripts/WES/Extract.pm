@@ -38,10 +38,6 @@ sub convertMosdepth2Grapes {
 		my $sample = basename($bam);
 		$sample =~s/.offTarget.bam//;
 
-		if (!$::sampleHash{$sample}{READSOFFTARGET}) {
-			print " WARNING: Skipping off-target analysis on $sample (low num: $::sampleHash{$sample}{READSOFFTARGET})\n";
-			$::pm->finish;
-		}
 		# Skipping off-target analysis on samples with less than specified off-target reads
 		if ($::sampleHash{$sample}{READSOFFTARGET} < $::minOfftargetReads) {
 			print " WARNING: Skipping off-target analysis on $sample (low num: $::sampleHash{$sample}{READSOFFTARGET})\n";

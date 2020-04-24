@@ -132,6 +132,7 @@ sub removePeaks {
 		}
 		else {
 			print " WARNING: $sample does not contain off-target peaks\n";
+			$::sampleHash{$sample}{READSOFFTARGET} = 0;
 		}
 	}
 	$::pm->finish;
