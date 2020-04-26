@@ -243,8 +243,8 @@ use Statistics::Descriptive;
   my %seen  = ();  
   my $count = 0;
   my @samples = ();
-  open (IN, "<", "$::HoF{CORRELATIONS_ON}") || die " ERROR: Cannot open $::HoF{CORRELATIONS_ON}\n";
 
+  open (IN, "<", "$::HoF{CORRELATIONS_ON}") || die " ERROR: Cannot open $::HoF{CORRELATIONS_ON}\n";
   while (my $line =<IN>) {
 	chomp $line;
 
@@ -266,8 +266,8 @@ use Statistics::Descriptive;
 	}
 	$seen{$tmp[0]}++;
 	$count++;
- }
- close IN;
+  }
+  close IN;
 
  my %visited;
  my $refN = 0;

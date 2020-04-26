@@ -427,7 +427,12 @@ sub allocateFile {
     # Writing a correlation table
 	print R "write.table(cor_corrected, \"$outputDir/$::outName.cor_corrected.txt\", sep=\"\\t\")\n";
 	close R;
-	`$::Rscript $outputDir/plotCorrelationMatrix.R $::devNull`;
+    if ($::verbose) {
+	    `$::Rscript $outputDir/plotCorrelationMatrix.R`;
+    }
+    else {
+        `$::Rscript $outputDir/plotCorrelationMatrix.R $::devNull`;
+    }
 	#unlink("$outputDir/bias_info.tmp.txt");
  }
 
