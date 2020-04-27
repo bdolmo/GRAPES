@@ -1095,7 +1095,7 @@ if ($doAnnotate) {
 	foreach my $sample ( sort keys %sampleHash ) {
 		next if $sampleHash{$sample}{CONTROL};
 		Annotate::doAnnotation("$outDir/$sample.CNV.vcf") if -e "$outDir/$sample.CNV.vcf";
-		Annotate::doAnnotation("$outDir/ON_TARGET/$sample.CNV.vcf"); "$outDir/ON_TARGET/$sample.CNV.vcf";
+		Annotate::doAnnotation("$outDir/ON_TARGET/$sample.CNV.vcf") if -e "$outDir/ON_TARGET/$sample.CNV.vcf";
 	}
 }
 
