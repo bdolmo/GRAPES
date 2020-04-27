@@ -1085,8 +1085,8 @@ if ($doFilter) {
 	print " INFO: Adding Filter tags to VCFs\n";
 	foreach my $sample ( sort keys %sampleHash ) {
 		next if $sampleHash{$sample}{CONTROL};
-		HardFilter::filter("$outDir/ON_TARGET/$sample.CNV.vcf");
-		HardFilter::filter("$outDir/$sample.CNV.vcf");
+		HardFilter::filter("$outDir/ON_TARGET/$sample.CNV.vcf") if -e "$outDir/ON_TARGET/$sample.CNV.vcf";
+		HardFilter::filter("$outDir/$sample.CNV.vcf") if -e "$outDir/$sample.CNV.vcf";
 	}
 }
 
@@ -1094,8 +1094,8 @@ if ($doAnnotate) {
 	print " INFO: Annotating VCFs with gnomAD\n";
 	foreach my $sample ( sort keys %sampleHash ) {
 		next if $sampleHash{$sample}{CONTROL};
-		Annotate::doAnnotation("$outDir/$sample.CNV.vcf");
-		Annotate::doAnnotation("$outDir/ON_TARGET/$sample.CNV.vcf");
+		Annotate::doAnnotation("$outDir/$sample.CNV.vcf") if -e "$outDir/$sample.CNV.vcf";
+		Annotate::doAnnotation("$outDir/ON_TARGET/$sample.CNV.vcf"); "$outDir/ON_TARGET/$sample.CNV.vcf";
 	}
 }
 

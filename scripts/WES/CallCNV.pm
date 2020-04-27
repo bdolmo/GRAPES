@@ -255,9 +255,14 @@ sub getCiposCiend {
 		$sampName =~s/segmented.//;
 		$sampName =~s/.bed//;
 		$sampName=~s/.on_off//;
+		my $outBed = "$inputDir/$sampName.CNV.bed"; 
 
-		next if !$::sampleHash{$sampName}{ONTARGET_SD_RATIO};
-		next if $::sampleHash{$sampName}{ONTARGET_SD_RATIO} == 0;
+		if (!$::sampleHash{$sampName}{ONTARGET_SD_RATIO} || 
+			 $::sampleHash{$sampName}{ONTARGET_SD_RATIO}) {
+			open (BED, ">", $outBed) || die " ERROR: Unable to open $outBed\n";
+			close BED;
+			next;
+		}
 
 		if ($type eq 'off-target'|| $type eq 'mixed') {
 			$ratioFile = "$inputDir/$sampName.ratios.txt.gz";
@@ -265,9 +270,13 @@ sub getCiposCiend {
 
 		# Avoid calling CNVs when off-target data is too noisy
 		if ($type eq 'off-target' && $::sampleHash{$sampName}{PERFORM_OFFTARGET} eq 'no') {
+			open (BED, ">", $outBed) || die " ERROR: Unable to open $outBed\n";
+			close BED;
 			next;
 		}
 		if ($type eq 'mixed' && $::sampleHash{$sampName}{ONOFF_SD_RATIO}> 0.2) {
+			open (BED, ">", $outBed) || die " ERROR: Unable to open $outBed\n";
+			close BED;
 			next;
 		}
 		
