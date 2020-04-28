@@ -22,6 +22,7 @@ use List::MoreUtils qw(uniq);
 	foreach my $sample (sort keys %::sampleHash ) {
 
 		# Skipping ratio calculation when not applicable
+		next if exists $::referenceHash{$sample};
 		next if $::sampleHash{$sample}{PERFORM_OFFTARGET} eq "no";
 		next if !-e "$offtargetDir/$sample.normalized.bed.gz";
 
@@ -161,9 +162,7 @@ use List::MoreUtils qw(uniq);
    foreach my $sample ( @samples ) {
 
 	   	# Skipping non-analyzable samples
-		if (exists $::referenceHash{$sample}) {
-			next;
-		}
+		next if exists $::referenceHash{$sample};
         if ($::doCaseControl) {
             next if $::sampleHash{$sample}{CONTROL};
         }

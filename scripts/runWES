@@ -1020,13 +1020,12 @@ foreach my $sample ( sort keys %sampleHash ) {
  
  if ($doCalling) {
 	
-	print " INFO: Building references from a pool of samples\n";
+	print " INFO: Building references\n";
 	Reference::clusterBatches();
 
-	print " INFO: Performing on-target Ratio calculation\n";
 	Ratio::calculateOnTargetRatios($ontargetDir, "ontarget");
 
-	print " INFO: Performing on-target segmentation\n";
+	print " INFO: Segmenting ratios\n";
 	Segment::CBS($ontargetDir, "ontarget", $analysisMode);
 	
 	########################################
