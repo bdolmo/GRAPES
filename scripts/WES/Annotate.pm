@@ -77,7 +77,6 @@ sub annotateGnomad {
     my $flag = 0;
     while (my $line=<IN>) {
         chomp $line;
-        print "$line\n";
         if ($line=~/^#/) {
             if ($line=~/##ALT/ && !$flag) {
                 $flag = 1;
@@ -116,24 +115,31 @@ sub annotateGnomad {
         my @gnomad 
             = tabixQuery($chr, $start, $end, $svtype, $precision);
 
-        foreach my $entry (@gnomad) {
-            my @info = split(";", $entry);
-            my @gathered = ();
+        if (@gnomad) {
+            foreach my $entry (@gnomad) {
+                my @info = split(";", $entry);
+                my @gathered = ();
 
-            foreach my $desired (@popDefaults) {
-                my ($x) = grep ($_=~/^$desired=/, @info);
-                push @gathered, $x;
+                foreach my $desired (@popDefaults) {
+                    my ($x) = grep ($_=~/^$desired=/, @info);
+                    push @gathered, $x;
+                }
+                
+                my $annot = join(";", @gathered);
+                $annot =~s/EVIDENCE/gnomAD_SV_method/;
+
+                my $extendedVar = join("\t", @tmp[0..7]) . ";" . $annot . join ("\t", @tmp[8..@tmp-1]);
+
+                $seenVar{$extendedVar}++;
+                next if $seenVar{$extendedVar} > 1;
+
+                print VCF join("\t", @tmp[0..7]) . ";" . $annot ."\t". $tmp[8] . "\n";
             }
-            
-            my $annot = join(";", @gathered);
-            $annot =~s/EVIDENCE/gnomAD_SV_method/;
-
-            my $extendedVar = join("\t", @tmp[0..7]) . ";" . $annot . join ("\t", @tmp[8..@tmp-1]);
-
-            $seenVar{$extendedVar}++;
-            next if $seenVar{$extendedVar} > 1;
-
-            print VCF join("\t", @tmp[0..7]) . ";" . $annot ."\t". $tmp[8] . "\n";
+        }
+        else {
+            my %popHash = map { $popDefaults[$_] => '.' } 0..$#popDefaults;
+            my @popData = map { $_ . '=' . $popHash{$_} } keys %popHash;
+            print VCF join("\t", @tmp[0..7]) . ";" . join(";", @popData) ."\t". $tmp[8] . "\n";
         }
     }
     close IN;
