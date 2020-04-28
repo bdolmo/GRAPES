@@ -20,6 +20,8 @@ sub generate {
 
     while (my $line=<IN>) {
         chomp $line;
+        print "$line\n" if $::verbose;
+
         my @tmp = split (/\t/, $line);
         my %Info = parse($line);
         my @Arr = ();
