@@ -255,29 +255,40 @@ sub getCiposCiend {
 		$sampName =~s/segmented.//;
 		$sampName =~s/.bed//;
 		$sampName=~s/.on_off//;
-		my $outBed = "$inputDir/$sampName.CNV.bed"; 
+
+		my $outBed             = "$inputDir/$sampName.CNV.bed"; 
+		my $outputForCnvBreaks = "$inputDir/$sampName.CNV.bed"; 
+		my $breakFile          = "$inputDir/$sampName/$sampName.breakpoints.bed";
 
 		if (!$::sampleHash{$sampName}{ONTARGET_SD_RATIO} || 
-			 $::sampleHash{$sampName}{ONTARGET_SD_RATIO}) {
+			 $::sampleHash{$sampName}{ONTARGET_SD_RATIO} > 0.2 ) {
 			open (BED, ">", $outBed) || die " ERROR: Unable to open $outBed\n";
 			close BED;
+			$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outputForCnvBreaks";
+			print "$cmd\n" if $::verbose;	
+			system $cmd;
 			next;
 		}
-
-		if ($type eq 'off-target'|| $type eq 'mixed') {
-			$ratioFile = "$inputDir/$sampName.ratios.txt.gz";
-		}
-
 		# Avoid calling CNVs when off-target data is too noisy
 		if ($type eq 'off-target' && $::sampleHash{$sampName}{PERFORM_OFFTARGET} eq 'no') {
 			open (BED, ">", $outBed) || die " ERROR: Unable to open $outBed\n";
 			close BED;
+			$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outputForCnvBreaks";
+			print "$cmd\n" if $::verbose;	
+			system $cmd;
 			next;
 		}
 		if ($type eq 'mixed' && $::sampleHash{$sampName}{ONOFF_SD_RATIO}> 0.2) {
 			open (BED, ">", $outBed) || die " ERROR: Unable to open $outBed\n";
 			close BED;
+			$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outputForCnvBreaks";
+			print "$cmd\n" if $::verbose;	
+			system $cmd;
 			next;
+		}
+
+		if ($type eq 'off-target'|| $type eq 'mixed') {
+			$ratioFile = "$inputDir/$sampName.ratios.txt.gz";
 		}
 		
 		# Temporal file for intersected segments within the targeted regions
@@ -522,9 +533,6 @@ sub getCiposCiend {
 			$sampName =~s/.on_off//;
 			$sampName =~s/;//;
 
-			my $outputForCnvBreaks = "$inputDir/$sampName.CNV.bed"; 
-			my $breakFile          = "$inputDir/$sampName/$sampName.breakpoints.bed";
-
 			if ( $type eq 'mixed') {
 				$breakFile = "$inputDir/ON_TARGET/$sampName/$sampName.breakpoints.bed";
 
@@ -684,9 +692,7 @@ sub getCiposCiend {
 	if ($type eq 'off-target'|| $type eq 'mixed') {
 			Utils::compressFile($ratioFile) if -s $ratioFile;
 	}
-	#$::pm->finish;
   }
-  #$::pm->wait_all_children;
 
   Utils::compressFile($ratioFile);
 }

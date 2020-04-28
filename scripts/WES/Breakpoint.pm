@@ -43,7 +43,7 @@ sub AnalyzeWES {
 	my @tmpBreaks = split (/\n/, $str);
 	my %seen = ();
 
-	open (OUT, ">", $ontargetSvCalls);
+	open (OUT, ">", $ontargetSvCalls) || die " ERROR: Unable to open $ontargetSvCalls\n";
 	foreach my $line (@tmpBreaks) {
 
 		# Skipping imprecise calls
@@ -74,7 +74,6 @@ sub AnalyzeWES {
 
 		my $precision   = $tmp[3];
 		my $svtype      = $tmp[4];
-		my $fallsInCNVR = $tmp[5];
 		my $mapQ        = $tmp[7];
 		my $kdiv        = sprintf "%.2f", $tmp[8];
 		my $AF          = $tmp[9];
@@ -95,7 +94,7 @@ sub AnalyzeWES {
 	close OUT;
 
 	# Removing temporal files
-    #removeSvTmpFiles($outdir, $outname);
+    removeSvTmpFiles($outdir, $outname);
  }
 ####################################################################
  sub getAffectedROIs {
