@@ -242,7 +242,7 @@ sub getCiposCiend {
   	@segmentedFiles    = grep (!-z $_, @segmentedFiles);
 
 	if (!@segmentedFiles) {
-		print " WARNING: Skipping CNV on $type data. No segmented files were detected\n"; 
+		print " WARNING: Skipping $type CNV calling. No segmented files were detected\n"; 
 		return 1;
 	}
 	my $numx = 0;
@@ -256,6 +256,7 @@ sub getCiposCiend {
 		$sampName =~s/.bed//;
 		$sampName=~s/.on_off//;
 
+		my $outTmpBed          = "$inputDir/$sampName.CNV.tmp.bed"; 
 		my $outBed             = "$inputDir/$sampName.CNV.bed"; 
 		my $outputForCnvBreaks = "$inputDir/$sampName.CNV.bed"; 
 		my $breakFile          = "$inputDir/$sampName/$sampName.breakpoints.bed";
@@ -263,7 +264,7 @@ sub getCiposCiend {
 
 		if (!$::sampleHash{$sampName}{ONTARGET_SD_RATIO} || 
 			 $::sampleHash{$sampName}{ONTARGET_SD_RATIO} > 0.2 ) {
-			open (BED, ">", $outBed) || die " ERROR: Unable to open $outBed\n";
+			open (BED, ">", $outTmpBed) || die " ERROR: Unable to open $outTmpBed\n";
 			close BED;
 			$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outputForCnvBreaks";
 			print "$cmd\n" if $::verbose;	
@@ -272,7 +273,7 @@ sub getCiposCiend {
 		}
 		# Avoid calling CNVs when off-target data is too noisy
 		if ($type eq 'off-target' && $::sampleHash{$sampName}{PERFORM_OFFTARGET} eq 'no') {
-			open (BED, ">", $outBed) || die " ERROR: Unable to open $outBed\n";
+			open (BED, ">", $outTmpBed) || die " ERROR: Unable to open $outTmpBed\n";
 			close BED;
 			$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outputForCnvBreaks";
 			print "$cmd\n" if $::verbose;	

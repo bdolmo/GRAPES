@@ -26,8 +26,8 @@ use List::MoreUtils qw(uniq);
 		next if $::sampleHash{$sample}{PERFORM_OFFTARGET} eq "no";
 		next if !-e "$offtargetDir/$sample.normalized.bed.gz";
 
-		open NORMALIZED, "$::zcat $offtargetDir/$sample.normalized.bed.gz |";
 		open RATIOS, ">", "$offtargetDir/$sample.ratios.txt";
+		open NORMALIZED, "$::zcat $offtargetDir/$sample.normalized.bed.gz |";
 
 		my @ratios = ();
 	 	while (my $line=<NORMALIZED>) {			
@@ -58,8 +58,6 @@ use List::MoreUtils qw(uniq);
 			else {
 				$ratio = sprintf "%.3f", $counts/$::sampleHash{$sample}{OFFTARGET_NORMALIZED};
 			}
-
-			next if $ratio > 6;
 
   			if ( $chr !~ "Y" ) {
 				push @ratios, $ratio;

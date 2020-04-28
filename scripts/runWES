@@ -581,7 +581,7 @@ $minZscore  = 2.58 if !$minZscore;
 	REFERENCES       => "$ontargetDir/$::outName.references.txt", # File with created references
 	FILTERED_ON      => "$ontargetDir/filtered_regions.txt", # Filtered regions due to low mappability, gc.
 	EXPORTED_DB      => "$ontargetDir/References.sqlite.txt", # Database exported in .txt temporary file
-	JSON             => "$outDir/$::outName.json",  # json that stores sample copy ratios for visualization/exploration purposes
+	JSON             => "$outDir/$::outName.GRAPES.json",  # json that stores sample copy ratios for visualization/exploration purposes
  );
 
  # Defining SQLite-related variables   
@@ -881,13 +881,13 @@ if ( readDepthIsInvolved() ) {
 }
  if ($doExtraction) {
 
- 	print " INFO: Extracting On-target Mappability\n";
+ 	print " INFO: Extracting on-target mappability\n";
  	Extract::getMappability($bed, "ontarget", $ontargetDir, \%ontargetHash);
 
 	if ( ( ($analysisMode eq 'exome') && ( !-e "$ontargetDir/$outName.ReadCounts.bed" && !-e "$ontargetDir/$outName.ReadCounts.bed.gz" ) ) 
 		|| ($analysisMode eq 'gene-panel' && !-e "$ontargetDir/$outName.ReadCounts.bed.gz" && !-e "$ontargetDir/$outName.Coverages.bed.gz") ) {
 
-		print " INFO: Performing On-target read depth extraction\n";
+		print " INFO: Extracting on-target read depth\n";
 		if ($analysisMode eq 'gene-panel') {
 			$cmd = "$targetDepth -i $input -o $ontargetDir -n $outName -g $genome -b $bed -c -d -t $threads $wverb";
 			print "$cmd\n" if $::verbose;
@@ -906,7 +906,7 @@ if ( readDepthIsInvolved() ) {
 		}
 	}
 	else {
-		print " INFO: on-target read death extraction. All files are already available\n";
+		print " INFO: Read depth is already extracted\n";
 	}
 	if ($doOfftarget) {
 
@@ -968,11 +968,11 @@ foreach my $sample ( sort keys %sampleHash ) {
 
 	# On-target data 
 	if ($normalizationMethod eq 'median') {
-		print " INFO: Performing on-target median normalization\n";
+		print " INFO: Normalizing on-target\n";
 		Normalize::normalizeOntarget($ontargetDir, $analysisMode, "ontarget", \%ontargetHash);
 	}
 	elsif ($normalizationMethod eq 'PCA') {
-		print " INFO: Performing on-target PCA noise reduction\n";
+		print " INFO: Normalizing on-target\n";
 		Normalize::readRawDepth($ontargetDir, \%ontargetHash, "ontarget");
 		PCAnorm::doPCA("$ontargetDir/$outName.ReadCounts.bed", $ontargetDir, \%ontargetHash );
 		Normalize::normalizePerBase($ontargetDir);
@@ -999,7 +999,7 @@ foreach my $sample ( sort keys %sampleHash ) {
 
 	# Render scatterplot only if ratios are available
 	if ( $plotScatter && -e "$ontargetDir/$outName.Ratios.bed.gz" && !$doCalling ) {
-		print " INFO: Plotting genome-wide on-target segmentation\n";
+		print " INFO: Plotting genome-wide on-target data\n";
 		Plot::plotScatter($ontargetDir, $analysisMode, "on-target");
 	}
 
@@ -1007,12 +1007,12 @@ foreach my $sample ( sort keys %sampleHash ) {
 	if ($doOfftarget) {
 		
 		# Normalized off-target data by GC
-		print " INFO: Performing off-target normalization\n";
+		print " INFO: Normalizing off-target\n";
 		Normalize::normalizeOfftarget($offtargetDir);			
 
 		# Render scatterplot only if ratios are available
 		if ( $plotScatter && -e "$offtargetDir/$outName.Ratios.bed" && !$doCalling ) {
-			print " INFO: Plotting genome-wide off-target segmentation\n";
+			print " INFO: Plotting genome-wide off-target data\n";
 			Plot::plotScatter($offtargetDir, $analysisMode, "off-target");
 		}
 	}
@@ -1065,38 +1065,36 @@ foreach my $sample ( sort keys %sampleHash ) {
 	CallCNV::call($ontargetDir, $analysisMode, "on-target", $bed, "$ontargetDir/$outName.Ratios.bed.gz");
 	
 	if ( $plotScatter ) {
-		print " INFO: Plotting genomewide on-target segmentation\n";
+		print " INFO: Plotting genomewide on-target data\n";
 		Plot::plotScatter($ontargetDir, $analysisMode, "on-target");
 	}
 
 	if ( $doOfftarget ) {
 
-		print " INFO: Performing off-target Ratio calculation\n";
 		Ratio::calculateRatioOfftarget($offtargetDir);
 
-		print " INFO: Performing off-target segmentation\n";
+		print " INFO: Segmenting off-target\n";
 		Segment::CBS($offtargetDir, "off-target", $analysisMode);
 
 		print " INFO: Calling off-target CNVs\n";
 		CallCNV::call($offtargetDir, $analysisMode, "off-target", $off_bed, "$offtargetDir/$outName.Ratios.bed.gz");
 
 		if ( $plotScatter ) {
-			print " INFO: Plotting genome-wide off-target segmentation\n";
+			print " INFO: Plotting genome-wide off-target data\n";
 			Plot::plotScatter($offtargetDir, $analysisMode, "off-target");
 		}
 
-	    print " INFO: Performing Mixed Ratio calculation\n";
 		Ratio::mergeOnOffRatios($ontargetDir, $offtargetDir);
 
-		print " INFO: Performing Mixed segmentation\n";
+		print " INFO: Segmenting on+off-target\n";
 		Segment::CBS($outDir, "off-target", $analysisMode);
 
 		if ( $plotScatter ) {
-			print " INFO: Plotting genome-wide On+Off-target segmentation\n";
+			print " INFO: Plotting genome-wide on+off-target data\n";
 			Plot::plotScatter($outDir, $analysisMode, "off-target");
 		}
 
-		print " INFO: Calling Mixed CNVs\n";
+		print " INFO: Calling on+off-target CNVs\n";
 		CallCNV::call($outDir, $analysisMode, "mixed", "None", "None");
 	}
 	# Outputting on-, off-, and mixed CNV calls at main output folder (outDir)
@@ -1105,7 +1103,7 @@ foreach my $sample ( sort keys %sampleHash ) {
  } 
 
 if ( $plotScatter ) {
-	print " INFO: Plotting genomewide On+Off-target segmentation\n";
+	print " INFO: Plotting genomewide on+off-target data\n";
 	Plot::plotScatter($outDir, $analysisMode, "off-target");
 }
 
@@ -1120,7 +1118,7 @@ foreach my $sample ( sort keys %sampleHash ) {
 
 # Annotate filtering tags
 if ($doFilter) {
-	print " INFO: Adding Filter tags to VCFs\n";
+	print " INFO: Applying filter tags to VCFs\n";
 	foreach my $sample ( sort keys %sampleHash ) {
 		next if $sampleHash{$sample}{CONTROL};
 		HardFilter::filter("$outDir/ON_TARGET/$sample.CNV.vcf") if -e "$outDir/ON_TARGET/$sample.CNV.vcf";

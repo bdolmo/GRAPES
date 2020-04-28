@@ -12,8 +12,6 @@ use Parallel::ForkManager;
    my $type     = shift;
    my $analysis = shift;
  
-   print " INFO: Segmenting ratios (CBS)\n";
-
    my $j = 0;
    my $i = 6;
 

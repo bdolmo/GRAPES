@@ -167,7 +167,7 @@ sub updateDB {
     my @tmpHeader = split (/\t/, $header);
 
     open (OUT, ">", "$::ontargetDir/$::outName.merged.refs.txt")
-     or die " error: cannot open $::ontargetDir/$::outName.merged.refs.txt\n";
+     or die " ERROR: cannot open $::ontargetDir/$::outName.merged.refs.txt\n";
 
     # Printing header
     print OUT join("\t", @tmpHeader[0..5]) . "\t" . join("\t", @refs) . "\n";
