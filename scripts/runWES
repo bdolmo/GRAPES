@@ -770,9 +770,9 @@ $minZscore  = 2.58 if !$minZscore;
  #####################################################################
  if ($analysisMode eq 'gene-panel' && $doExtraction) {
 	#if ( !-e "$outDir/SHORT_INTRONS/mappability_intronic.bed") { 
-		print YELLOW "\n INTRON ANALYSIS\n", RESET;  
-		print " INFO: Extracting short (<200bp) intronic sequences\n";
-		Intron::Analyze();
+		#print YELLOW "\n INTRON ANALYSIS\n", RESET;  
+		#print " INFO: Extracting short (<200bp) intronic sequences\n";
+		#Intron::Analyze();
 	#}
  }
 
