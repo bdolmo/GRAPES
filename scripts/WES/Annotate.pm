@@ -77,6 +77,7 @@ sub annotateGnomad {
     my $flag = 0;
     while (my $line=<IN>) {
         chomp $line;
+        print "$line\n";
         if ($line=~/^#/) {
             if ($line=~/##ALT/ && !$flag) {
                 $flag = 1;

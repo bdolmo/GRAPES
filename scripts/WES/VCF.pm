@@ -20,7 +20,6 @@ sub generate {
 
     while (my $line=<IN>) {
         chomp $line;
-        print "$line\n" if $::verbose;
 
         my @tmp = split (/\t/, $line);
         my %Info = parse($line);
@@ -33,7 +32,6 @@ sub generate {
 
         $Info{SVTYPE} =~s/SVTYPE=//;
         print VCF "$tmp[0]\t$tmp[1]\t.\tN\t<$Info{SVTYPE}>\t.\t$Info{FILTER}\t$Info{PRECISION};END=$tmp[2];". join(";", @Arr) . "\tGT:CN\t./.:.\n";
-        print"$tmp[0]\t$tmp[1]\t.\tN\t<$Info{SVTYPE}>\t.\t$Info{FILTER}\t$Info{PRECISION};END=$tmp[2];". join(";", @Arr) . "\tGT:CN\t./.:.\n" if $::verbose;
     }
     close IN;
     close VCF;
