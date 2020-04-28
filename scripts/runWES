@@ -620,14 +620,14 @@ $minZscore  = 2.58 if !$minZscore;
 		@controlBams = glob("$controls/*.bam");
 	}
 
-	# If input is a list of bams
+	# If controls is a list of bams
 	if ( -f $controls ) {
 		open (IN, "<", $controls) || die " ERROR: Cannot open $controls\n";	
 		while (my $line=<IN>) {
 			chomp $line;
 			my @tmp = split (/\t/, $line);
 			if (@tmp > 1) {
-				print "\nERROR: $input file list must contain a single sample PATH per line\n";
+				print "\nERROR: $controls file list must contain a single sample PATH per line\n";
 				exit;
 			}
 			push @controlBams, $line;
@@ -636,7 +636,6 @@ $minZscore  = 2.58 if !$minZscore;
 	}
 
 	foreach my $bam (@controlBams) {
-
 		if ($samtools_version > 1.5) {
 			# From samtools specs: By default quickcheck will emit a warning message if and only if a file fails the checks,
 			my $quickCheck = `$samtools quickcheck $bam`; 
@@ -658,14 +657,14 @@ $minZscore  = 2.58 if !$minZscore;
 		@caseBams = glob("$cases/*.bam");
 	}
 
-	# If input is a list of bams
+	# If cases is a list of bams
 	if ( -f $cases ) {
 		open (IN, "<", $cases) || die " ERROR: Cannot open $cases\n";	
 		while (my $line=<IN>) {
 			chomp $line;
 			my @tmp = split (/\t/, $line);
 			if (@tmp > 1) {
-				print "\nERROR: $input file list must contain a single sample PATH per line\n";
+				print "\nERROR: $cases file list must contain a single sample PATH per line\n";
 				exit;
 			}
 			push @caseBams, $line;
@@ -694,6 +693,12 @@ $minZscore  = 2.58 if !$minZscore;
 		print " ERROR: no input bams were introduced\n";
 		exit;	
 	}
+	$input = "$outDir/input_bam_list.txt";
+	open (IN, ">", $input) || die " ERROR: Unable to open $input\n";
+	foreach my $bam (@bams) {
+		print IN "$bam\n";
+	}
+	close IN;
  }
  elsif ($doPooled) {
 	if ( -d $input ) {
@@ -884,19 +889,9 @@ if ( readDepthIsInvolved() ) {
 
 		print " INFO: Performing On-target read depth extraction\n";
 		if ($analysisMode eq 'gene-panel') {
-			if ($doPooled) {
-				$cmd = "$targetDepth -i $input -o $ontargetDir -n $outName -g $genome -b $bed -c -d -t $threads $wverb";
-				print "$cmd\n" if $::verbose;
-				system ($cmd);
-			}
-			else {
-				$cmd = "$targetDepth -i $cases -o $ontargetDir -n $outName -g $genome -b $bed -c -d -t $threads $wverb";
-				print "$cmd\n" if $::verbose;
-				system ($cmd);
-				$cmd = "$targetDepth -i $controls -o $ontargetDir -n $outName -g $genome -b $bed -c -d -t $threads $wverb";
-				print "$cmd\n" if $::verbose;
-				system ($cmd);
-			}
+			$cmd = "$targetDepth -i $input -o $ontargetDir -n $outName -g $genome -b $bed -c -d -t $threads $wverb";
+			print "$cmd\n" if $::verbose;
+			system ($cmd);
 		}
 		elsif ($analysisMode eq 'exome') {
 			$cmd = "$targetDepth -i $input -o $ontargetDir -n $outName -g $genome -b $bed -c -t $threads $wverb";
