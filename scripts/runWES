@@ -581,7 +581,7 @@ $minZscore  = 2.58 if !$minZscore;
 	REFERENCES       => "$ontargetDir/$::outName.references.txt", # File with created references
 	FILTERED_ON      => "$ontargetDir/filtered_regions.txt", # Filtered regions due to low mappability, gc.
 	EXPORTED_DB      => "$ontargetDir/References.sqlite.txt", # Database exported in .txt temporary file
-	JSON             => "$outDir/$::outName.json",
+	JSON             => "$outDir/$::outName.json",  # json that stores sample copy ratios for visualization/exploration purposes
  );
 
  # Defining SQLite-related variables   
@@ -598,6 +598,7 @@ $minZscore  = 2.58 if !$minZscore;
  })
  || die $DBI::errstr;
 
+ # Define whether if analyzing a gene-panel or an exome
  my $analysisMode = returnHybridCaptureType($bed);
  print " INFO: Mode: $analysisMode\n";
 
@@ -611,12 +612,30 @@ $minZscore  = 2.58 if !$minZscore;
  my @multiple;
  my $failedBam = 0;
 
+ # For case-control analysis
  if ($doCaseControl) {
 
 	# Getting control bams
-	@controlBams = glob("$controls/*.bam");
+	if ( -d $controls ) {
+		@controlBams = glob("$controls/*.bam");
+	}
+
+	# If input is a list of bams
+	if ( -f $controls ) {
+		open (IN, "<", $controls) || die " ERROR: Cannot open $controls\n";	
+		while (my $line=<IN>) {
+			chomp $line;
+			my @tmp = split (/\t/, $line);
+			if (@tmp > 1) {
+				print "\nERROR: $input file list must contain a single sample PATH per line\n";
+				exit;
+			}
+			push @controlBams, $line;
+		}
+		close IN;
+	}
+
 	foreach my $bam (@controlBams) {
-		print"$bam\n";
 
 		if ($samtools_version > 1.5) {
 			# From samtools specs: By default quickcheck will emit a warning message if and only if a file fails the checks,
@@ -634,9 +653,26 @@ $minZscore  = 2.58 if !$minZscore;
 	}
 
 	# Getting case bams
-	@caseBams = glob("$cases/*.bam");
-	foreach my $bam (@caseBams) {
+	# Getting control bams
+	if ( -d $cases ) {
+		@caseBams = glob("$cases/*.bam");
+	}
 
+	# If input is a list of bams
+	if ( -f $cases ) {
+		open (IN, "<", $cases) || die " ERROR: Cannot open $cases\n";	
+		while (my $line=<IN>) {
+			chomp $line;
+			my @tmp = split (/\t/, $line);
+			if (@tmp > 1) {
+				print "\nERROR: $input file list must contain a single sample PATH per line\n";
+				exit;
+			}
+			push @caseBams, $line;
+		}
+		close IN;
+	}
+	foreach my $bam (@caseBams) {
 		if ($samtools_version > 1.5) {
 			# From samtools specs: By default quickcheck will emit a warning message if and only if a file fails the checks,
 			my $quickCheck = `$samtools quickcheck $bam`; 
@@ -646,11 +682,9 @@ $minZscore  = 2.58 if !$minZscore;
 				exit;
 			}
 		}
-
 		my $sampleName  = basename($bam);
 		my $samplePath  = $bam;
 		$sampleName=~s/.bam//;
-
 		$sampleHash{$sampleName}{CASE} = 1;
 	}
 
