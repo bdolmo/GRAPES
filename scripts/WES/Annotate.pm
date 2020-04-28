@@ -133,13 +133,13 @@ sub annotateGnomad {
                 $seenVar{$extendedVar}++;
                 next if $seenVar{$extendedVar} > 1;
 
-                print VCF join("\t", @tmp[0..7]) . ";" . $annot ."\t". $tmp[8] . "\n";
+                print VCF join("\t", @tmp[0..7]) . ";" . $annot . "\t". $tmp[8] . "\t" . $tmp[9] . "\n";
             }
         }
         else {
             my %popHash = map { $popDefaults[$_] => '.' } 0..$#popDefaults;
             my @popData = map { $_ . '=' . $popHash{$_} } keys %popHash;
-            print VCF join("\t", @tmp[0..7]) . ";" . join(";", @popData) ."\t". $tmp[8] . "\n";
+            print VCF join("\t", @tmp[0..7]) . ";" . join(";", @popData) ."\t". $tmp[8] . "\t" . $tmp[9] . "\n";
         }
     }
     close IN;
