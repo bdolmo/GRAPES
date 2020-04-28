@@ -259,6 +259,7 @@ sub getCiposCiend {
 		my $outBed             = "$inputDir/$sampName.CNV.bed"; 
 		my $outputForCnvBreaks = "$inputDir/$sampName.CNV.bed"; 
 		my $breakFile          = "$inputDir/$sampName/$sampName.breakpoints.bed";
+		my $cmd;
 
 		if (!$::sampleHash{$sampName}{ONTARGET_SD_RATIO} || 
 			 $::sampleHash{$sampName}{ONTARGET_SD_RATIO} > 0.2 ) {
@@ -296,7 +297,6 @@ sub getCiposCiend {
 		$intersect =~s/segmented./intersect.segmentation./;	
 		$intersect = "$inputDir/$intersect";
 
-		my $cmd;
 		if ($type eq 'on-target' && $analysis ne 'exome') {
 			# Removing header for intersecting purposes
 			$cmd = "$::zcat $inputDir/$::outName.norm_bylib_coverage.bed.gz";
