@@ -137,6 +137,7 @@ sub annotateGnomad {
             }
         }
         else {
+            print "$line\n";
             my %popHash = map { $popDefaults[$_] => '.' } 0..$#popDefaults;
             my @popData = map { $_ . '=' . $popHash{$_} } keys %popHash;
             print VCF join("\t", @tmp[0..7]) . ";" . join(";", @popData) ."\t". $tmp[8] . "\t" . $tmp[9] . "\n";
