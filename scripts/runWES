@@ -884,9 +884,19 @@ if ( readDepthIsInvolved() ) {
 
 		print " INFO: Performing On-target read depth extraction\n";
 		if ($analysisMode eq 'gene-panel') {
-			$cmd = "$targetDepth -i $input -o $ontargetDir -n $outName -g $genome -b $bed -c -d -t $threads $wverb";
-			print "$cmd\n" if $::verbose;
-			system ($cmd);
+			if ($doPooled) {
+				$cmd = "$targetDepth -i $input -o $ontargetDir -n $outName -g $genome -b $bed -c -d -t $threads $wverb";
+				print "$cmd\n" if $::verbose;
+				system ($cmd);
+			}
+			else {
+				$cmd = "$targetDepth -i $cases -o $ontargetDir -n $outName -g $genome -b $bed -c -d -t $threads $wverb";
+				print "$cmd\n" if $::verbose;
+				system ($cmd);
+				$cmd = "$targetDepth -i $controls -o $ontargetDir -n $outName -g $genome -b $bed -c -d -t $threads $wverb";
+				print "$cmd\n" if $::verbose;
+				system ($cmd);
+			}
 		}
 		elsif ($analysisMode eq 'exome') {
 			$cmd = "$targetDepth -i $input -o $ontargetDir -n $outName -g $genome -b $bed -c -t $threads $wverb";
