@@ -149,7 +149,6 @@ sub annotateGnomad {
     # Now erase unnanotated VCF and rename tmp annotated
     unlink($inputVCF);
     rename $annotVCF, $inputVCF;
-
 }
 
 ################
