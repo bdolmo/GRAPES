@@ -318,6 +318,7 @@ my $noPlotSingle = "";
 my $noPlotScatter= "";
 my $noReportHTML = "";
 my $noPlotCNV    = "";
+my $noFilterDiscordantOnly = "";
 
 # Defining global hashes that will be filled once and not modified afterwards.
 our $genomeLength;
@@ -407,6 +408,7 @@ Help () if (@ARGV<1 or !GetOptions(
 	'vaf'          =>\$doVAF,
 
 	'no-breakpoint'=>\$noBreakpoint,
+	'no-filter-discordant-only'=>\$noFilterDiscordantOnly,
 	'no-offtarget' =>\$noOfftarget,
 	'no-vaf'       =>\$noVaf,   
 	'no-callCNV'   =>\$noCallCNV, 
@@ -414,7 +416,7 @@ Help () if (@ARGV<1 or !GetOptions(
 	'no-plotCNV'   =>\$noPlotCNV, 
 	'no-annotate'  =>\$noAnnotate, 
 	'no-filter'    =>\$noFilter, 
-	'no-reportHTML'=>\$noReportHTML, 
+	'no-reportHTML'=>\$noReportHTML,
 	'minZscore=f'     =>\$minZscore,
 	'minCorrelation=f'=>\$minCorrelation,
 	'PCAvariance=f' =>\$PCAvariance,
@@ -531,6 +533,9 @@ $minZscore  = 2.58 if !$minZscore;
  }
  if ($noVaf) {
 	 $doVAF = 0;
+ }
+ if ($noFilterDiscordantOnly) {
+	 $filterDiscordantOnly = 0;
  }
  if ($cases && $controls) {
 	$doCaseControl = 1;
@@ -877,7 +882,7 @@ $minZscore  = 2.58 if !$minZscore;
  ################################################################
 
 if ( readDepthIsInvolved() ) {
-	print YELLOW "\n READ DEPTH ANALYSIS\n", RESET;  
+	print YELLOW "\n Read Depth Analysis\n", RESET;  
 }
  if ($doExtraction) {
 

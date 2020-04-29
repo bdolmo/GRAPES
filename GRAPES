@@ -71,6 +71,7 @@ my $noPlotScatter="";
 my $noReportHTML ="";
 my $noBreakpoint ="";
 my $noPlotCNV    ="";
+my $noFilterDiscordantOnly = "";
 
 my $minCorrelation;     # Default minimum correlation
 my $maxSampleSizeCluster = 15; # Default maximum number of samples to build a single baseline
@@ -317,6 +318,7 @@ Help () if (@ARGV < 1 or !GetOptions(
 	'no-annotate' =>\$noAnnotate, #####
 	'no-filter'=>\$noFilter, #####
 	'no-reportHTML' =>\$noReportHTML, #####
+	'no-filter-discordant-only'=>\$noFilterDiscordantOnly,
 
 	'minCorrelation=f'=>\$minCorrelation,
 	'minSampleSizeCluster=i'=>\$minSampleSizeCluster,
@@ -750,6 +752,10 @@ else {
 	if ($noReportHTML) {
 		$opt.= " --no-reportHTML";
 	}
+	if ($noFilterDiscordantOnly) {
+		$opt-= " --no-filter-discordant-only";
+	}
+
 
 	$cmd = "$WESexe $opt  $inputOption -g $genome -o $outDir -b $bed -t $threads";
     print " INFO: $cmd\n"; 
@@ -921,6 +927,7 @@ sub Help2 {
    --reportHTML	      Write results to an HTML file (Only for gene panels)
      --no-reportHTML  TUrn off report HTML creation
    --filterDiscordantOnly	Filter discordant-only SV predictions (default = true)
+	 --no-filter-discordant-only Turn off discordant-only filtering
    --verbose          Print sub-command messages\n\n";
 
     print BOLD GREEN "   PARAMS" , RESET, "\n";
