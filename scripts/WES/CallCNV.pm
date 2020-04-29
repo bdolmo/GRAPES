@@ -269,6 +269,7 @@ sub getCiposCiend {
 			$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outputForCnvBreaks";
 			print "$cmd\n" if $::verbose;	
 			system $cmd;
+			unlink $outTmpBed;
 			next;
 		}
 		# Avoid calling CNVs when off-target data is too noisy
@@ -278,6 +279,7 @@ sub getCiposCiend {
 			$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outputForCnvBreaks";
 			print "$cmd\n" if $::verbose;	
 			system $cmd;
+			unlink $outTmpBed;
 			next;
 		}
 		if ($type eq 'mixed' && $::sampleHash{$sampName}{ONOFF_SD_RATIO}> 0.2) {
@@ -286,6 +288,7 @@ sub getCiposCiend {
 			$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outputForCnvBreaks";
 			print "$cmd\n" if $::verbose;	
 			system $cmd;
+			unlink $outTmpBed;
 			next;
 		}
 
