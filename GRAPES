@@ -318,7 +318,6 @@ Help () if (@ARGV < 1 or !GetOptions(
 	'no-annotate' =>\$noAnnotate, #####
 	'no-filter'=>\$noFilter, #####
 	'no-reportHTML' =>\$noReportHTML, #####
-	'no-filter-discordant-only'=>\$noFilterDiscordantOnly,
 
 	'minCorrelation=f'=>\$minCorrelation,
 	'minSampleSizeCluster=i'=>\$minSampleSizeCluster,
@@ -331,6 +330,7 @@ Help () if (@ARGV < 1 or !GetOptions(
 	'minDiscordants=i'=>\$numCluster,
 	'minDiscordantSD=i'=>\$sdCluster,
 	'filterDiscordantOnly'=>\$filterDiscordantOnly,
+	'no-filter-discordant-only'=>\$noFilterDiscordantOnly,
 
 	'minSizeSV=i' =>\$minSizeSV,
 	'maxSizeSV=i' =>\$maxSizeSV,
@@ -753,7 +753,7 @@ else {
 		$opt.= " --no-reportHTML";
 	}
 	if ($noFilterDiscordantOnly) {
-		$opt-= " --no-filter-discordant-only";
+		$op.-= " --no-filter-discordant-only";
 	}
 
 
