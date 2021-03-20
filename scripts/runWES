@@ -33,6 +33,7 @@ use WES::VCF;
 use WES::vcf2HTML;
 use WES::VAF;
 use WES::Reference;
+use WES::QC;
 
 #use WES::LOH;
 use Misc::Utils;
@@ -52,6 +53,9 @@ our $runAnnotate = "$dirname/../scripts/runAnnotate";
 # Tool for counting offtarget reads
 our $offtargetExtractor = "$dirname/../bin/offtarget/extractOfftarget";
 
+# R script for calling single exon CNVs 
+our $analyzeSingleExonR = "$dirname/../scripts/analyzeSingleExon.R";
+
 our $AnnFeat         = "$dirname/../bin/AnnFeat/AnnFeat";
 our $imgDir          = "$dirname/../img/";
 our $getMapOfftarget = "$dirname/offtargetMap.pl";
@@ -66,10 +70,10 @@ our $gnomADvcf		 = "$dirname/../db/gnomad/gnomad_v2.1_sv.sites.vcf.gz";
 
 our $devNull         = ">/dev/null 2>&1";
 our $devNullStderr   = "2> /dev/null";
-our $version = "v0.9.4";
+our $version = "v0.9.5";
+
 our $tabix = `which tabix`; 
 chomp $tabix;
-
 if (!$tabix) {
 	print " ERROR: tabix was not found on PATH\n"; exit;
 }
@@ -84,35 +88,35 @@ if (!$bgzip) {
 our $cat  = `which cat`;
 chomp $cat;
 if (!$cat) {
-	print "ERROR: cat command not found\n";
+	print " ERROR: cat command not found\n";
 	exit;
 }
 
 our $gzip  = `which gzip`;
 chomp $gzip;
 if (!$gzip) {
-	print "ERROR: gzip command not found\n";
+	print " ERROR: gzip command not found\n";
 	exit;
 }
 
 our $gunzip  = `which gunzip`;
 chomp $gunzip;
 if (!$gunzip) {
-	print "ERROR: gunzip command not found\n";
+	print " ERROR: gunzip command not found\n";
 	exit;
 }
 
 our $zcat  = `which zcat`;
 chomp $zcat;
 if (!$zcat) {
-	print "ERROR: zcat command not found\n";
+	print " ERROR: zcat command not found\n";
 	exit;	
 }
 
 our $cut  = `which cut`;
 chomp $cut;
 if (!$cut) {
-	print "ERROR: cut command not found\n";
+	print " ERROR: cut command not found\n";
 	exit;
 }
 
@@ -200,9 +204,9 @@ if (!$freebayes) {
 our $macs2 = `which macs2`;
 chomp $macs2;
 
-  if (!$macs2) {
+if (!$macs2) {
     print " ERROR: macs2 was not found on PATH\n"; exit;
-  }
+}
 
 our $sed  = `which sed`;
 chomp $sed;
@@ -307,6 +311,7 @@ my  $doAll          = "";
 our $doCaseControl  = 0;
 our $doPooled       = 1;
 
+my $refDir       = "";
 my $noBreakpoint = "";
 my $noOfftarget  = "";
 my $noVaf        = "";
@@ -375,62 +380,63 @@ Help () if (@ARGV<1 or !GetOptions(
 	'cases=s'   =>\$cases,
 	'controls=s'=>\$controls,
 
-	'o=s'=>\$outDir,
-	'g=s'=>\$genome,
-	'b=s'=>\$bed,
-    't=i'=>\$threads,
-
+	'outdir|o=s'=>\$outDir,
+	'genome|g=s'=>\$genome,
+	'bed|b=s'=>\$bed,
+    'threads|t=i'=>\$threads,
 	'all' =>\$doAll,
 
 	# Breakpoint analysis
 	'breakpoint'     =>\$doBreakpoint,
-	'minBreakReads'  =>\$minBreakReads,
-	'minDiscordantSD=i'=>\$minDiscordantsSD,
-    'minDiscordants=i' =>\$minDiscordants,
-	'filterDiscordantOnly' =>\$filterDiscordantOnly,
+	'breakreads'  =>\$minBreakReads,
+	'mindiscordantssd=i'=>\$minDiscordantsSD,
+    'mindiscordants=i' =>\$minDiscordants,
+	'filterdiscordantonly' =>\$filterDiscordantOnly,
 
+	# Other options 
+	'refdir=s'     =>\$refDir, 
 	'extract'      =>\$doExtraction,
 	'offtarget'    =>\$doOfftarget,	
-	'build-ref'    =>\$buildReference,
-	'useControlDir'=>\$useControlDir,
+	'buildref'     =>\$buildReference,
+	'usecontroldir'=>\$useControlDir,
 	'normalize=s'  =>\$doNormalization,
-	'callCNV'      =>\$doCalling,
-	'plotScatter'  =>\$plotScatter,
-	'plotKaryotype'=>\$plotKaryotype,
-	'plotBiases'   =>\$plotBiases,
-	'plotSingleExon' =>\$plotSingleExon,
-	'plotLargeCNV' =>\$plotLargeCNV,
-	'filterVCF'    =>\$doFilter,
+	'callcnv'      =>\$doCalling,
+	'plotscatter'  =>\$plotScatter,
+	'plotkaryotype'=>\$plotKaryotype,
+	'plotbiases'   =>\$plotBiases,
+	'plotsingleexon' =>\$plotSingleExon,
+	'plotlargecnv' =>\$plotLargeCNV,
+	'filtervcf'    =>\$doFilter,
 	'annotate'	   =>\$doAnnotate,
 	'freebayes'    =>\$doFreebayes,
 	'samtools'     =>\$doSamtools,
-	'reportHTML'   =>\$createReport,
+	'reporthtml'   =>\$createReport,
 	'vaf'          =>\$doVAF,
 
-	'no-breakpoint'=>\$noBreakpoint,
-	'no-filter-discordant-only'=>\$noFilterDiscordantOnly,
-	'no-offtarget' =>\$noOfftarget,
-	'no-vaf'       =>\$noVaf,   
-	'no-callCNV'   =>\$noCallCNV, 
-	'no-scatter'   =>\$noPlotScatter, 
-	'no-plotCNV'   =>\$noPlotCNV, 
-	'no-annotate'  =>\$noAnnotate, 
-	'no-filter'    =>\$noFilter, 
-	'no-reportHTML'=>\$noReportHTML,
-	'minZscore=f'     =>\$minZscore,
-	'minCorrelation=f'=>\$minCorrelation,
-	'PCAvariance=f' =>\$PCAvariance,
-	'minSampleSizeCluster=i'=>\$minSampleSizeCluster,
-	'maxSampleSizeCluster=i'=>\$maxSampleSizeCluster,
+	'nobreakpoint'=>\$noBreakpoint,
+	'nofilterdiscordantonly'=>\$noFilterDiscordantOnly,
+	'noofftarget' =>\$noOfftarget,
+	'novaf'       =>\$noVaf,   
+	'nocallcnv'   =>\$noCallCNV, 
+	'noscatter'   =>\$noPlotScatter, 
+	'noplotcnv'   =>\$noPlotCNV, 
+	'noannotate'  =>\$noAnnotate, 
+	'nofilter'    =>\$noFilter, 
+	'noreporthtml'=>\$noReportHTML,
+	'minzscore=f' =>\$minZscore,
+	'mincorr=f'=>\$minCorrelation,
+	'minpcavariance=f' =>\$PCAvariance,
+	'minrefsize=i'=>\$minSampleSizeCluster,
+	'maxrefsize=i'=>\$maxSampleSizeCluster,
 
-	'minOffreads=i'=>\$minOfftargetReads, # Default minimum number of offtarget reads needed to trigger analysis
-	'minOffsd=i'=>\$minOfftargetSD,
+	'minofftargetreads=i'=>\$minOfftargetReads, # Default minimum number of offtarget reads needed to trigger analysis
+	'minofftargetreadssd=i'=>\$minOfftargetSD,
 
-	'lowerDelCutoff=f'      =>\$lowerDelCutoff,
-	'upperDelCutoff=f'      =>\$upperDelCutoff,
-	'lowerDupCutoff=f'      =>\$lowerDupCutoff,
-	'maxSizeSV=i' 			=>\$maxSizeSV,
-	'minSizeSV=i'           =>\$minSizeSV,
+	'lowerdelcutoff=f'      =>\$lowerDelCutoff,
+	'upperdelcutoff=f'      =>\$upperDelCutoff,
+	'lowerdupcutoff=f'      =>\$lowerDupCutoff,
+	'maxsvsize=i' 			=>\$maxSizeSV,
+	'minsvsize=i'           =>\$minSizeSV,
 	'verbose'               =>\$verbose,
 	)
 );
@@ -443,7 +449,7 @@ if ($PCAvariance > 1 || $PCAvariance < 0) {
 $lowerDelCutoff = 0.35 if !$lowerDelCutoff;
 $upperDelCutoff = 0.71 if !$upperDelCutoff;
 $lowerDupCutoff = 1.24 if !$lowerDupCutoff;
-$minCorrelation = 0.91 if !$minCorrelation;
+$minCorrelation = 0.5 if !$minCorrelation;
 $minSampleSizeCluster = 2 if !$minSampleSizeCluster;
 $maxSampleSizeCluster = 15 if !$maxSampleSizeCluster;
 $minZscore  = 2.58 if !$minZscore;
@@ -466,7 +472,7 @@ $minZscore  = 2.58 if !$minZscore;
  if (!-e $outDir) {
 	mkdir $outDir;
  }
- if (!$bed) {
+ if (!$bed || !$bed ) {
 	print " ERROR: a BED file is required\n";
 	Help();
 	exit;
@@ -492,7 +498,7 @@ $minZscore  = 2.58 if !$minZscore;
    $createReport    = 1;
    $plotKaryotype   = 1;
    $createReport    = 1;
-   $doVAF           = 0;
+   $doVAF           = 1;
    $doFilter        = 1;
    $doAnnotate      = 1;
    $plotSingleExon  = 1;
@@ -595,7 +601,20 @@ $minZscore  = 2.58 if !$minZscore;
  our $driver   = "SQLite"; 
  our $userid   = "";
  our $password = ""; 
- our $database = $::sqliteDir . "/" . $roiName . ".db";
+ our $database;
+ if ( $refDir) {
+	 if (!-e $refDir) {
+		 mkdir $refDir;
+	 } 
+	 $database = $refDir . "/" . $roiName . ".db";
+	 if (!-e $database) {
+		 print " WARNING: $database doest not exist\n";
+	 } 
+ } 
+ else {
+	 $database = $::sqliteDir . "/" . $roiName . ".db";
+ } 
+
  our $dsn = "DBI:$driver:dbname=$database";
  our $dbh = DBI->connect($::dsn, $::userid, $::password, 
  { RaiseError => 1,
@@ -778,13 +797,13 @@ $minZscore  = 2.58 if !$minZscore;
  #     Create intronic bed. For now just applicable for gene panels  #
  #     GOAL: Find exons that are very close (<200bp)                 #
  #####################################################################
- if ($analysisMode eq 'gene-panel' && $doExtraction) {
+ #if ($analysisMode eq 'gene-panel' && $doExtraction) {
 	#if ( !-e "$outDir/SHORT_INTRONS/mappability_intronic.bed") { 
 		#print YELLOW "\n INTRON ANALYSIS\n", RESET;  
 		#print " INFO: Extracting short (<200bp) intronic sequences\n";
 		#Intron::Analyze();
 	#}
- }
+ #}
 
  ###################################################
  #    Initializing sample and a GC global hashes   # 
@@ -815,30 +834,39 @@ $minZscore  = 2.58 if !$minZscore;
   
 	# Initializing Sample hash
 	$sampleHash{$sampleName}{PATH} = $bam;
-	$sampleHash{$sampleName}{ROI}         = undef;
-	$sampleHash{$sampleName}{MEANCOUNTS}  = undef;
-	$sampleHash{$sampleName}{MEANCOV}     = undef;
-	$sampleHash{$sampleName}{MEDIANCOUNTS}= undef;
-	$sampleHash{$sampleName}{ARR_COUNTS}  = undef;
-	$sampleHash{$sampleName}{PERFORM_OFFTARGET} = "yes";
-
+	$sampleHash{$sampleName}{ROI}         = ".";
+	$sampleHash{$sampleName}{MEANCOUNTS}  = ".";
+	$sampleHash{$sampleName}{MEANCOV}     = ".";
+	$sampleHash{$sampleName}{MEDIANCOUNTS}= ".";
+	$sampleHash{$sampleName}{ARR_COUNTS}  = ".";
+	if ($doOfftarget){ 
+		$sampleHash{$sampleName}{PERFORM_OFFTARGET} = "YES";
+	}
+	else{
+		$sampleHash{$sampleName}{PERFORM_OFFTARGET} = "NO";
+	}  
+	$sampleHash{$sampleName}{ONTARGET_QC_PASS}  = ".";
+	$sampleHash{$sampleName}{OFFTARGET_QC_PASS} = "."; 
+	
 	# ChromosomeX
-	$sampleHash{$sampleName}{MEANCOVX}    = undef;
-	$sampleHash{$sampleName}{MEANCOUNTSX} = undef;
-	$sampleHash{$sampleName}{TOTALREADS_ONTARGET_X} = undef;
-	$sampleHash{$sampleName}{TOTALREADS_OFFTARGET_X} = undef;
-
+	$sampleHash{$sampleName}{MEANCOVX}    = ".";
+	$sampleHash{$sampleName}{MEANCOUNTSX} = ".";
+	$sampleHash{$sampleName}{TOTALREADS_ONTARGET_X} = ".";
+	$sampleHash{$sampleName}{TOTALREADS_OFFTARGET_X} = ".";
+	$sampleHash{$sampleName}{N_CALL}      = 0;
+	$sampleHash{$sampleName}{N_NO_CALL}      = 0;
 	$sampleHash{$sampleName}{TOTALREADS}     = undef;
-	$sampleHash{$sampleName}{READSONTARGET}  = undef;
-	$sampleHash{$sampleName}{READSOFFTARGET} = undef;				
-	$sampleHash{$sampleName}{MEANISIZE}      = undef;	
-	$sampleHash{$sampleName}{SDISIZE}        = undef;
+	$sampleHash{$sampleName}{READSONTARGET}  = ".";
+	$sampleHash{$sampleName}{READSOFFTARGET} = ".";				
+	$sampleHash{$sampleName}{MEANISIZE}      = ".";
+	$sampleHash{$sampleName}{SDISIZE}        = ".";
 	$sampleHash{$sampleName}{OFFTARGETBIN}   = 15000;	
-	$sampleHash{$sampleName}{OFFTARGETMEDIAN}= undef;
+	$sampleHash{$sampleName}{OFFTARGETMEDIAN}= ".";
 	$sampleHash{$sampleName}{SNPVCF}         = "$input/$sampleName.vcf" if $input;
     $sampleHash{$sampleName}{BAF_ONTARGET}   = "$outDir/BAF_DATA/$sampleName.baf_segment.bed";
     $sampleHash{$sampleName}{BAF_OFFTARGET}  = "$outDir/BAF_DATA/$sampleName.baf_segment.bed";
     $sampleHash{$sampleName}{BAF}            = "$outDir/BAF_DATA/$sampleName.baf_segment.bed";
+	$sampleHash{$sampleName}{CNVBED}         = "$outDir/$sampleName.CNV.bed";
 
 	$i++;
  }
@@ -948,7 +976,7 @@ foreach my $sample ( sort keys %sampleHash ) {
 
 	my @arrStr = split (/\t/, $str);
 
-	$sampleHash{$sample}{TOTALREADS_ONTARGET}   = $arrStr[1];
+	$sampleHash{$sample}{TOTALREADS}   			= $arrStr[1];
 	$sampleHash{$sample}{READSONTARGET}         = $arrStr[2];
 	$sampleHash{$sample}{TOTALREADS_ONTARGET_X} = $arrStr[3];
 	$sampleHash{$sample}{ROI_ONTARGET}          = $arrStr[4];
@@ -1031,40 +1059,41 @@ foreach my $sample ( sort keys %sampleHash ) {
 	Ratio::calculateOnTargetRatios($ontargetDir, "ontarget");
 
 	print " INFO: Segmenting ratios\n";
-	Segment::CBS($ontargetDir, "ontarget", $analysisMode);
+	Segment::CBS($ontargetDir, "on-target", $analysisMode);
 	
 	########################################
 	#	Importing VCFs  to calculate VAF   #
 	########################################
 
-	if ($doVAF) {
-		foreach my $sample ( sort keys %sampleHash ) {
+	# DEPRECATED MARCH '21 
+	# if ($doVAF) {
+	# 	foreach my $sample ( sort keys %sampleHash ) {
 
-			my $pid = $pm -> start() and next;
+	# 		my $pid = $pm -> start() and next;
 
-			if (-e "$sampleHash{$sample}{SNPVCF}") {
-				print " INFO: Importing $sample\'s SNV VCF\n";
-			}
-			else {
-				if ($doVAF) {
-					if ($doSamtools) {
-						if ($samtools && $bcftools) {
-							VAF::varCallSamtools($sampleHash{$sample}{PATH}, $sample);
-						}
-					}
-					if ($doFreebayes) {
-						if ($freebayes) {
-							VAF::varCallFreebayes($sampleHash{$sample}{PATH}, $sample);
-						}
-					}
-				}
-			}
-			$pm->finish; 
-		}
-		$pm->wait_all_children;
-	#Todo: some sort of validation function for calls with Germline/Somatic tags
-		VAF::selectVariants();
-	}
+	# 		if (-e "$sampleHash{$sample}{SNPVCF}") {
+	# 			print " INFO: Importing $sample\'s SNV VCF\n";
+	# 		}
+	# 		else {
+	# 			if ($doVAF) {
+	# 				if ($doSamtools) {
+	# 					if ($samtools && $bcftools) {
+	# 						VAF::varCallSamtools($sampleHash{$sample}{PATH}, $sample);
+	# 					}
+	# 				}
+	# 				if ($doFreebayes) {
+	# 					if ($freebayes) {
+	# 						VAF::varCallFreebayes($sampleHash{$sample}{PATH}, $sample);
+	# 					}
+	# 				}
+	# 			}
+	# 		}
+	# 		$pm->finish; 
+	# 	}
+	# 	$pm->wait_all_children;
+	# #Todo: some sort of validation function for calls with Germline/Somatic tags
+	# 	VAF::selectVariants();
+	# }
 
 	print " INFO: Calling on-target CNVs\n";
 	CallCNV::call($ontargetDir, $analysisMode, "on-target", $bed, "$ontargetDir/$outName.Ratios.bed.gz");
@@ -1102,20 +1131,30 @@ foreach my $sample ( sort keys %sampleHash ) {
 		print " INFO: Calling on+off-target CNVs\n";
 		CallCNV::call($outDir, $analysisMode, "mixed", "None", "None");
 	}
+	else{
+		if ( $plotScatter ) {
+			print " INFO: Plotting genomewide on+off-target data\n";
+			Plot::plotScatter($outDir, $analysisMode, "off-target");
+		}
+	} 
 	# Outputting on-, off-, and mixed CNV calls at main output folder (outDir)
 	# Todo: UNify CNVs calls when there exists overlap between on and off-target.
 	mergeOnOfftargetCalls();
  } 
 
-if ( $plotScatter ) {
-	print " INFO: Plotting genomewide on+off-target data\n";
-	Plot::plotScatter($outDir, $analysisMode, "off-target");
-}
+# Annotate VAF SNV information
+if ($doVAF){
+	print " INFO: Adding VAF annotations\n";
+	foreach my $sample ( sort keys %sampleHash ) {
+		next if -z $sampleHash{$sample}{CNVBED};
+		VAF::annotateSnvVAF($sampleHash{$sample}{PATH}, $outDir, $sample, $sampleHash{$sample}{CNVBED});
+	}	
+} 
 
+print " INFO: Generating VCFs\n";
 # Generate VCF 
 foreach my $sample ( sort keys %sampleHash ) {
 	next if $sampleHash{$sample}{CONTROL};
-	print " INFO: Generating VCF for $sample\n";
 	VCF::generate("$outDir/ON_TARGET/$sample.CNV.bed") if -e "$outDir/ON_TARGET/$sample.CNV.bed";
 	#VCF::generate("$outDir/OFF_TARGET/$sample.CNV.bed");
 	VCF::generate("$outDir/$sample.CNV.bed") if -e "$outDir/$sample.CNV.bed";
@@ -1131,14 +1170,19 @@ if ($doFilter) {
 	}
 }
 
+# Annotate gnomAD
 if ($doAnnotate) {
 	print " INFO: Annotating VCFs with gnomAD\n";
 	foreach my $sample ( sort keys %sampleHash ) {
 		next if $sampleHash{$sample}{CONTROL};
-		Annotate::doAnnotation("$outDir/$sample.CNV.vcf") if -e "$outDir/$sample.CNV.vcf";
-		Annotate::doAnnotation("$outDir/ON_TARGET/$sample.CNV.vcf") if -e "$outDir/ON_TARGET/$sample.CNV.vcf";
+		Annotate::doAnnotation("$outDir/$sample.CNV.vcf", $outDir, 0.5) if -e "$outDir/$sample.CNV.vcf";
+		Annotate::doAnnotation("$outDir/ON_TARGET/$sample.CNV.vcf", $outDir, 0.5) if -e "$outDir/ON_TARGET/$sample.CNV.vcf";
 	}
 }
+
+filterRoisByAnnotation($HoF{FILTERED_ON});
+QC::writeSampleQC($outDir);
+QC::writeRoiQC($outDir);
 
 # Creating HTML report for gene-panels.
 if ( $createReport ) {
@@ -1154,6 +1198,20 @@ print  OUTJSON "$json_output\n";
 close OUTJSON;
 
 $dbh->disconnect();
+
+###############################
+sub filterRoisByAnnotation {
+
+	my $filterRoiFile = shift;
+	open (IN, "<", $filterRoiFile)|| die " ERROR: Unable to open $filterRoiFile\n";  
+	while (my $line=<IN>) {
+		chomp $line;
+		my @tmp = split ("\t", $line);
+		my $coord = "$tmp[0]\t$tmp[1]\t$tmp[2]";
+		$::filteredRois{$coord}++;
+	}
+	close IN; 
+} 
 
 ###############################
 sub mergeOnOfftargetCalls {

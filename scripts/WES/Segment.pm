@@ -24,7 +24,6 @@ use Parallel::ForkManager;
 	   	next if $::sampleHash{$sample}{OFFTARGET_SD_RATIO} > 0.2;
 	   	next if $::sampleHash{$sample}{PERFORM_OFFTARGET} eq 'no';
 	   }
-
 	   push @ratios, "$inputDir/$sample.ratios.txt.gz" if -s "$inputDir/$sample.ratios.txt.gz";
    }
 
@@ -72,7 +71,7 @@ use Parallel::ForkManager;
 		 open (R, ">", $segmentRscript) || die "Unable to open $segmentRscript\n";	
 		 print R "options(scipen = 999)\n";
 
-		 if ($type eq 'ontarget' && $analysis eq 'gene-panel') {
+		 if ($type eq 'on-target' && $analysis eq 'gene-panel') {
 			
 			 print R "library(PSCBS)\n";
 			 print R "mydata<-read.table(\"$tmpSegment\", sep =\"\t\",header=FALSE)\n";
@@ -99,13 +98,21 @@ use Parallel::ForkManager;
 		 $cmd = "$::Rscript $segmentRscript $::devNull";
 		 system ($cmd);
 		 
-		 if ($type eq 'ontarget' && $analysis eq 'gene-panel') {
+		 if ($type eq 'on-target' && $analysis eq 'gene-panel') {
 			
 			if (-e "$inputDir/SEGMENT_DATA/PSCBS.$sample.bed.tsv") {
-				$cmd = "$::cat $inputDir/SEGMENT_DATA/PSCBS.$sample.bed.tsv | $::grep -v '#' | $::grep -v 'sampleName'| $::grep -v '\tNA'| $::awk '{ print \"chr\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5\"\t\"\$6  }'| $::awk '{ if (\$1 ~ /23/) { print \"chrX\"\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5} else { print \$0} }' |   $::awk '{ if (\$1 ~ /^24/) { print \"chrY\"\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5} else { print \$0} }'  > $inputDir/SEGMENT_DATA/segmented.$sample.bed";
+				$cmd = "$::cat $inputDir/SEGMENT_DATA/PSCBS.$sample.bed.tsv | $::grep -v '#' | $::grep -v 'sampleName'| $::grep -v '\tNA' ";
+				$cmd.= " | $::awk '{ print \"chr\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5\"\t\"\$6  }' ";
+				$cmd.= " | $::awk '{ if (\$1 ~ /23/) { print \"chrX\"\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5} else { print \$0} }' ";
+				$cmd.= " | $::awk '{ if (\$1 ~ /^24/) { print \"chrY\"\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5} else { print \$0} }'  > $inputDir/SEGMENT_DATA/segmented.$sample.bed";
 				system $cmd;
 
-				$cmd = "$::cat $inputDir/SEGMENT_DATA/PSCBS.$sample.bed.tsv | $::grep -v '#' | $::grep -v 'sampleName'| $::grep -v '\tNA' | awk '{ print \"chr\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5\"\t\"\$6  }' | $::awk '{ if (\$1 ~ /^23/) { print \"chrX\"\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5} else { print \$0} }' |   $::awk '{ if (\$1 ~ /^24/) { print \"chrY\"\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5} else { print \$0} }' | $::bedtools intersect -a $file -b stdin -wo | awk '{ print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5\"\t\"\$11}' > $inputDir/SEGMENT_DATA/toplot.segmented.$sample.bed"; #t
+				$cmd = "$::cat $inputDir/SEGMENT_DATA/PSCBS.$sample.bed.tsv | $::grep -v '#' | $::grep -v 'sampleName'| $::grep -v '\tNA' ";
+				$cmd.= " | $::awk '{ print \"chr\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5\"\t\"\$6  }' ";
+				$cmd.= " | $::awk '{ if (\$1 ~ /23/) { print \"chrX\"\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5} else { print \$0} }'";
+				$cmd.= " | $::awk '{ if (\$1 ~ /^24/) { print \"chrY\"\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5} else { print \$0} }' ";
+				$cmd.= " | $::bedtools intersect -a $file -b stdin -wo ";
+				$cmd.= " | $::awk '{ print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5\"\t\"\$11}' > $inputDir/SEGMENT_DATA/toplot.segmented.$sample.bed"; #t
 				system $cmd;
 			}
 		 }
@@ -119,7 +126,8 @@ use Parallel::ForkManager;
 				# Remove temporary file
 				unlink("$inputDir/SEGMENT_DATA/segmented.$sample.tmp.bed");
 
-			 	$cmd = "$::cat $inputDir/SEGMENT_DATA/segmented.$sample.bed | $::bedtools intersect -a $file -b stdin -wo | awk '{ print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5\"\t\"\$11}' > $inputDir/SEGMENT_DATA/toplot.segmented.$sample.bed";
+			 	$cmd = "$::cat $inputDir/SEGMENT_DATA/segmented.$sample.bed | $::bedtools intersect -a $file -b stdin -wo";
+				$cmd.= " | $::awk '{ print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5\"\t\"\$11}' > $inputDir/SEGMENT_DATA/toplot.segmented.$sample.bed";
 			}
 		 }
 		 system($cmd);

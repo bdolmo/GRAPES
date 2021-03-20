@@ -138,15 +138,13 @@ sub convertMosdepth2Grapes {
 		$Regions{$window_name}{GC}+=($tmp[4]*$length);
 		$Regions{$window_name}{EFFECTIVE_LENGTH}+=$length;
 
-#		if ($seen{$window_name}>1) {
-			if ($tmp[1] < $min) {
-				$Regions{$window_name}{START} = $tmp[1];
-				$min = $tmp[1];
-			}
-			if ($tmp[2] > $max) {
-				$Regions{$window_name}{END} = $tmp[2];
-			}
-#		}
+		if ($tmp[1] < $min) {
+			$Regions{$window_name}{START} = $tmp[1];
+			$min = $tmp[1];
+		}
+		if ($tmp[2] > $max) {
+			$Regions{$window_name}{END} = $tmp[2];
+		}
 	}
 	close IN;
 

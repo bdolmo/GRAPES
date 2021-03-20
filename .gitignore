@@ -1,0 +1,5 @@
+*.bam
+*.sam
+*.db
+mappability/
+db/gnomad/

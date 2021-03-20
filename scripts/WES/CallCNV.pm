@@ -36,35 +36,207 @@ use File::Copy;
   }
 
   # Analyzing gene panel
-  if ( $analysis eq 'gene-panel' ) {
+  if ($analysis eq 'gene-panel') {
 
-        callMultipleExonCNV($inputDir, $analysis, $type, $bedfile, $ratioFile);
+    callMultipleExonCNV($inputDir, $analysis, $type, $bedfile, $ratioFile);
 
-	  	if ($type eq 'on-target') {
-			
-			callSingleExonCNV($inputDir, $analysis);
-		  	#filterCNVsByBreakpoint();
-	  	}
+	if ($type eq 'on-target') {
+		callSingleExonCNV($inputDir, $analysis);
+  	}
   }
-
   # Analyzing exome
-  elsif ( $analysis eq 'exome' ) {
+  elsif ($analysis eq 'exome') {
   	callMultipleExonCNV($inputDir, $analysis, $type, $bedfile, $ratioFile);
   }
   
   # Annotate BAF values
-  if ($::doVAF) {
-  	appendVAF($inputDir);
-  }
+#   if ($::doVAF) {
+#   	appendVAF($inputDir);
+#   }
+  
+  dumpFinalCalls($inputDir);
+
+  print " INFO: Adding confidence scores\n";
+  scoreCNV($inputDir);
 
   # Deleting temporary files
   unlink (glob ("$inputDir/*ratios.bed"));
-  unlink (glob ("$inputDir/*single_calls.bed"));
+  unlink (glob ("$inputDir/*single.exon.cnv.bed"));
   unlink (glob ("$inputDir/Breaks_and_CNV*"));
   unlink (glob ("$inputDir/cnv_calls.*"));
   unlink (glob ("$inputDir/intersect.*"));
+  unlink (glob ("$inputDir/*.exon.cnv.bed"));
 
  }
+
+####################################################################
+sub scoreCNV {
+
+	my $outputDir = shift;
+
+	foreach my $sample (sort keys %::sampleHash) { 
+
+		my $finalCalls  = "$outputDir/$sample.CNV.bed";
+		my $scoredCalls = "$outputDir/$sample.CNV.score.bed";
+
+		if (-e $finalCalls) {
+
+			my $corr     = $::sampleHash{$sample}{CORRELATION};
+			my $nCalls   = `$::cat $finalCalls | $::wc -l`;
+			chomp $nCalls;
+
+			my $pctCalls =  ($nCalls/scalar(@::ROIarray))*100;
+			my $ratioStd = $::sampleHash{$sample}{ONTARGET_SD_RATIO};
+
+			open (IN, "<", $finalCalls) || die " ERROR: Unable to open $finalCalls\n";
+			open (OUT, ">", $scoredCalls) || die " ERROR: Unable to open $scoredCalls\n"; 
+			while (my $line=<IN>){
+				chomp $line;
+				my @tmp  = split("\t", $line);
+				my @info = split(";", $tmp[3]);
+
+				my $precision = $info[0]; 
+
+				my ($svtype) = grep ($_=~/SVTYPE=/,@info );
+				$svtype =~s/SVTYPE=// if $svtype;
+
+				my ($regions) = grep ($_=~/REGIONS=/,@info );
+				$regions =~s/REGIONS=// if $regions;
+				
+				my ($ratio) = grep ($_=~/RRD=/,@info );
+				$ratio =~s/RRD=// if $ratio;
+
+				my ($s2n) = grep ($_=~/SNR=/,@info );
+				$s2n =~s/SNR=// if $s2n;
+
+				my ($s2nc) = grep ($_=~/SNRC=/,@info );
+				$s2nc =~s/SNRC=// if $s2n;
+
+				my ($cn) = grep ($_=~/CN=/,@info );
+				$cn =~s/CN=// if $cn;
+
+				my ($score) = "";
+				if ($precision eq 'PRECISE'){
+					$score = '.';
+				} 
+				else {
+					# Single exon CNV 
+					if ($regions == 1){
+						$score = scoreSingleExon($svtype, $nCalls, $ratioStd, $pctCalls, $corr, $ratio, $s2n, $s2nc, $cn);
+					}
+					# Multiple exon CNV 
+					else {
+						$score = scoreMultipleExon($svtype, $nCalls, $ratioStd, $pctCalls, $corr, $ratio, $s2n, $s2nc, $cn);
+					} 
+				}
+				print OUT "$line;CONF_SCORE=$score\n";
+			} 
+			close IN;
+			close OUT;
+			unlink $finalCalls;
+			rename $scoredCalls, $finalCalls;
+		} 
+	} 
+} 
+####################################################################
+sub scoreSingleExon {
+
+	my $svtype   = shift;
+	my $nRois    = shift;
+	my $sampleStd= shift;
+	my $pctCalls = shift;
+	my $corr     = shift;
+	my $ratio    = shift;
+	my $s2n      = shift;
+	my $s2nc     = shift;
+	my $cn       = shift;
+
+	# Sample Level Metrics
+	my $stdMetric      = $sampleStd < 0.2 ? 1 : 0;
+	my $pctCallsMetric = $pctCalls < 1.5 ? 1 : 0; 
+	my $corrMetric     = $corr > 0.97 ? 1 : 0;
+	my $SLM = 0.45*$stdMetric + 0.45*$pctCallsMetric + 0.1*$corrMetric;
+
+	# Roi LeveL Metrics
+	my $expectedRatio = 0.5*$cn;
+	my $absDiffRatio  = 0;
+	if ($ratio > $expectedRatio) {
+		$absDiffRatio = 2.5*(abs($ratio-$expectedRatio));
+	}
+	else {
+		$absDiffRatio =2.5*(abs($expectedRatio-$ratio));
+	}
+	my $absDiffMetric = 1-$absDiffRatio > 0 ? 1-$absDiffRatio : 0;
+	my $signal2noiseMetric = $s2n > 10 ? 1 : 0;
+	my $signal2noiseControlsMetric = $s2nc > 10 ? 1 : 0;
+	#print"$stdMetric\t$pctCallsMetric\t$corrMetric\t$absDiffMetric\t$signal2noiseMetric\t$signal2noiseControlsMetric\n"; 
+
+	my $RLM = 0.50*$absDiffMetric + 0.25*$signal2noiseMetric+0.25*$signal2noiseControlsMetric;
+	
+	# Score = SLM + RLM
+	my $score = 0.4*$SLM + 0.6*$RLM;
+
+} 
+####################################################################
+sub scoreMultipleExon {
+	my $svtype   = shift;
+	my $nRois    = shift;
+	my $sampleStd= shift;
+	my $pctCalls = shift;
+	my $corr     = shift;
+	my $ratio    = shift;
+	my $s2n      = shift;
+	my $s2nc     = shift;
+	my $cn       = shift;
+
+	# Sample Level Metrics
+	my $stdMetric      = $sampleStd < 0.2 ? 1 : 0;
+	my $pctCallsMetric = $pctCalls < 1.5 ? 1 : 0; 
+	my $corrMetric     = $corr > 0.97 ? 1 : 0;
+	my $SLM = 0.45*$stdMetric + 0.45*$pctCallsMetric + 0.1*$corrMetric;
+
+	# Roi LeveL Metrics
+	my $expectedRatio = 0.5*$cn;
+	my $absDiffRatio  = 0;
+	if ($ratio > $expectedRatio) {
+		$absDiffRatio = 2.5*(abs($ratio-$expectedRatio));
+	}
+	else {
+		$absDiffRatio =2.5*(abs($expectedRatio-$ratio));
+	}
+	my $nRoisMetric   = $nRois > 1 ? 1 : 0;
+	my $absDiffMetric = 1-$absDiffRatio > 0 ? 1-$absDiffRatio : 0;
+	my $signal2noiseMetric = $s2n > 10 ? 1 : 0;
+	my $signal2noiseControlsMetric = $s2nc > 10 ? 1 : 0;
+
+	my $RLM = 0.30*$nRoisMetric + 0.50*$absDiffMetric + 0.10*$signal2noiseMetric + 0.10*$signal2noiseControlsMetric;
+	
+	# Score = SLM + RLM
+	my $score = 0.4*$SLM + 0.6*$RLM;
+} 
+####################################################################
+sub dumpFinalCalls {
+
+	my $outputDir = shift;
+
+	foreach my $sample (sort keys %::sampleHash) { 
+
+		my $mergedMultipleCalls = "$outputDir/$sample.merged.breaks.multiple.exon.cnv.bed";
+		my $mergedAllCalls = "$outputDir/$sample.merged.breaks.single.multiple.exon.cnv.bed"; 
+		my $finalCalls = "$outputDir/$sample.CNV.bed";
+
+		my @tmpFiles;
+		if (-e $mergedMultipleCalls) {
+			push @tmpFiles, $mergedMultipleCalls;
+		} 
+		if (-e $mergedAllCalls) {
+			push @tmpFiles, $mergedAllCalls;
+		} 
+		my $cmd = "$::cat @tmpFiles | $::sort -V | $::uniq > $finalCalls";
+		system $cmd if @tmpFiles; 
+	} 
+
+} 
 
 ####################################################################
 sub getCiposCiend {
@@ -165,7 +337,6 @@ sub getCiposCiend {
 	return $affectedROIs;
  }
 
-
  ###################################
  #	Map sample to an index column  #
  ###################################
@@ -204,13 +375,11 @@ sub getCiposCiend {
 	return %sampleIndex;
  }
 
- ################################################
- #	         Analyze segmented CNVs             #
- ################################################
+ ###############################################
+ #	         Analyze segmented CNVs            #
+ ###############################################
  sub callMultipleExonCNV {
 	
-    print " INFO: Calling multi-exon CNVs\n";
-
     my $inputDir = shift;
     my $analysis = shift; # gene-panel or exome
     my $type     = shift; # on-target or off-target or mixed
@@ -245,51 +414,57 @@ sub getCiposCiend {
 		print " WARNING: Skipping $type CNV calling. No segmented files were detected\n"; 
 		return 1;
 	}
-	my $numx = 0;
+
+    print " INFO: Calling multi-exon CNVs\n";
 
 	# Get segmented CNVs (multi-exon)
     foreach my $file (@segmentedFiles) {
-		$numx++;
 
 		my $sampName = basename($file);
 		$sampName =~s/segmented.//;
 		$sampName =~s/.bed//;
 		$sampName=~s/.on_off//;
 
-		my $outTmpBed          = "$inputDir/$sampName.CNV.tmp.bed"; 
-		my $outBed             = "$inputDir/$sampName.CNV.bed"; 
-		my $outputForCnvBreaks = "$inputDir/$sampName.CNV.bed"; 
-		my $breakFile          = "$inputDir/$sampName/$sampName.breakpoints.bed";
+		my $outBed    = "$inputDir/$sampName.CNV.bed"; 
+		my $breakFile = "$inputDir/$sampName/$sampName.breakpoints.bed";
 		my $cmd;
 
 		if (!$::sampleHash{$sampName}{ONTARGET_SD_RATIO} || 
 			 $::sampleHash{$sampName}{ONTARGET_SD_RATIO} > 0.2 ) {
-			open (BED, ">", $outTmpBed) || die " ERROR: Unable to open $outTmpBed\n";
-			close BED;
-			$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outputForCnvBreaks";
+			$::sampleHash{$sampName}{ONTARGET_QC_PASS} = "NO";
+			$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outBed";
 			print "$cmd\n" if $::verbose;	
 			system $cmd;
-			unlink $outTmpBed;
 			next;
 		}
+		else {
+			$::sampleHash{$sampName}{ONTARGET_QC_PASS} = "YES";
+		} 
 		# Avoid calling CNVs when off-target data is too noisy
-		if ($type eq 'off-target' && $::sampleHash{$sampName}{PERFORM_OFFTARGET} eq 'no') {
-			open (BED, ">", $outTmpBed) || die " ERROR: Unable to open $outTmpBed\n";
-			close BED;
-			$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outputForCnvBreaks";
-			print "$cmd\n" if $::verbose;	
-			system $cmd;
-			unlink $outTmpBed;
-			next;
+		if ($type eq 'off-target') {
+
+			if ($::sampleHash{$sampName}{PERFORM_OFFTARGET} eq 'NO') {
+				$::sampleHash{$sampName}{OFFTARGET_QC_PASS} = "NO";
+				$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outBed";
+				print "$cmd\n" if $::verbose;	
+				system $cmd;
+				next;
+			}
+			else {
+				$::sampleHash{$sampName}{OFFTARGET_QC_PASS} = "YES";
+			} 
 		}
-		if ($type eq 'mixed' && $::sampleHash{$sampName}{ONOFF_SD_RATIO}> 0.2) {
-			open (BED, ">", $outBed) || die " ERROR: Unable to open $outBed\n";
-			close BED;
-			$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outputForCnvBreaks";
-			print "$cmd\n" if $::verbose;	
-			system $cmd;
-			unlink $outTmpBed;
-			next;
+		if ($type eq 'mixed'){ 
+			if ( $::sampleHash{$sampName}{ONOFF_SD_RATIO}> 0.2) {
+				$cmd = "$::mergeCnvBreaks $breakFile $outBed | $::sort -V | $::uniq > $outBed";
+				print "$cmd\n" if $::verbose;	
+				system $cmd;
+				next;
+				$::sampleHash{$sampName}{OFFTARGET_QC_PASS} = "NO";
+			}
+			else {
+				$::sampleHash{$sampName}{OFFTARGET_QC_PASS} = "YES";
+			} 
 		}
 
 		if ($type eq 'off-target'|| $type eq 'mixed') {
@@ -304,37 +479,39 @@ sub getCiposCiend {
 		if ($type eq 'on-target' && $analysis ne 'exome') {
 			# Removing header for intersecting purposes
 			$cmd = "$::zcat $inputDir/$::outName.norm_bylib_coverage.bed.gz";
-			$cmd .= "| $::tail -n +2 > $inputDir/$::outName.norm_bylib_coverage_noheader.bed";
+			$cmd.= "| $::tail -n +2 > $inputDir/$::outName.norm_bylib_coverage_noheader.bed";
 			system $cmd;
 		}
 
-		# Selecting candidate segments that do not overlap centromeres			
+		# Selecting candidate segments that do not overlap centromeres and that pass the minimunm calling thresholds		
 		$cmd = "$::bedtools intersect -a $file -b $::centromeres -v | ";
-		$cmd.= "$::awk '{ if ((\$5 < $::upperDelCutoff && \$5 > $::lowerDelCutoff) || (\$5 > $::lowerDupCutoff)  || (\$5 > 0 && \$5 < 0.12)) { print \$0 }}' | $::sort -V > $intersect";
+		$cmd.= "$::awk '{ if ((\$5 < $::upperDelCutoff && \$5 > $::lowerDelCutoff) || (\$5 > $::lowerDupCutoff) ";
+		$cmd.= "|| (\$5 > 0 && \$5 < 0.12)) { print \$0 }}' | $::sort -V > $intersect";
 		system $cmd if !-e $intersect;
 
-		my $rawCNVs = basename($file);
-		$rawCNVs =~s/segmented/cnv_calls/;
-		$rawCNVs = "$inputDir/$rawCNVs";
+		# File for raw multiple-exon cnvs 
+		my $rawMultipleExonCnv = "$inputDir/$sampName.raw.multiple.exon.cnv.bed";
 
-		my $outMergedCNV = $inputDir . "/" . basename($rawCNVs);
-		$outMergedCNV =~s/cnv_calls./cnv_calls.merged./;
+		# File for merged multiple-exon cnvs. Ad-hoc solution because sometimes DNAcopy does not merge adjacent ROIs 
+		my $mergedMultipleExonCnv = "$inputDir/$sampName.merged.multiple.exon.cnv.bed";
 
-		my $outMergedSingleCNV = $inputDir . "/" . basename($rawCNVs);
-		$outMergedSingleCNV =~s/cnv_calls./cnv_calls.single.merged./;
+		# File for merged multiple-exon cnvs + breakpoint calls.
+		my $multipleCnvAndBreaks = "$inputDir/$sampName.merged.breaks.multiple.exon.cnv.bed"; 
 
-		my $ratios      = $inputDir . "/". $sampName . ".ratios.txt.gz";
-		my $singleTmp   = $inputDir . "/". $sampName . ".tmp.single_calls.bed";
-		my $singleCalls = $inputDir . "/". $sampName . ".single_calls.bed";
+		# File for single-exon cnvs
+		my $singleExonCnv = "$inputDir/$sampName.raw.single.exon.cnv.bed";
 
-		open (OUTFILE, ">", $rawCNVs) || die " ERROR: Unable to open $rawCNVs\n";
+		my $ratios        = $inputDir . "/". $sampName . ".ratios.txt.gz";
+		my $singleTmp     = $inputDir . "/". $sampName . ".tmp.single.exon.cnv.bed";
+
+		open (OUTFILE, ">", $rawMultipleExonCnv) || die " ERROR: Unable to open $rawMultipleExonCnv\n";
 
 		# if no segmented CNVs found
 		if (-z $intersect && -z $ratios ) {
 
 			# Select single ROIs that pass the minimum calling thresholds
 			my $cmd = "$::zcat $ratios | $::awk '{ if ((\$5 < $::upperDelCutoff && \$5 > $::lowerDelCutoff) || (\$5 > $::lowerDupCutoff)";
-			$cmd .= "|| (\$5 > 0 && \$5 < 0.12)) { print \$0 }}' | $::sort -V >> $singleCalls";		
+			$cmd .= "|| (\$5 > 0 && \$5 < 0.12)) { print \$0 }}' | $::sort -V >> $singleExonCnv";		
 			print "$cmd\n" if $::verbose;	
 			system($cmd);
 		}
@@ -394,6 +571,7 @@ sub getCiposCiend {
 				my @signal2noise = ();
 				my @ArrMeanZscore =  ();
 				my @ArrRatiosSample = ();
+				my @ArrRatiosControl = ();
 				my @ArrRatiosOfftarget = ();
 
 				open (TMP, ">", "$inputDir/PLOT_DATA/$sampName.$chr.$start.tmp.txt") 
@@ -432,7 +610,6 @@ sub getCiposCiend {
 					my $sdControls;
 					my $sdSample;
 					my $zscoreSample;
-					my @ArrRatiosControl = ();
 
 					# Get copy ratios, std.dev and z-scores
 					if ($type eq 'on-target') {
@@ -512,25 +689,30 @@ sub getCiposCiend {
 				# Mean GC of the segment
 				my $meanGC = Utils::meanArray(@ArrGC); 
 
-				my $meanSignal2Noise;
-				my $meanRatioOfftarget;
+				my $meanSignal2Noise     = "";
+				my $signal2noiseControls = "";
+				my $meanRatioOfftarget   = "";
 				if ($type eq 'on-target') {
 					$meanSignal2Noise = Utils::meanArray(@signal2noise);
+					$signal2noiseControls = Utils::signal2noise(@ArrRatiosControl);
 				}
 				else {
 					($meanRatioOfftarget, $meanSignal2Noise) = Utils::signal2noise(@ArrRatiosOfftarget);
 					$MAD = Utils::MAD(@ArrRatiosOfftarget);
+					$signal2noiseControls = ".";
 				}
 				# Mean z-score of the segmented ratios
-				my $meanZscore = sprintf "%.3f", (($tmpLine[10]-$::sampleHash{$sampName}{ONTARGET_MEAN_RATIO})/$::sampleHash{$sampName}{ONTARGET_SD_RATIO});
+				my $meanZscore = 
+					sprintf "%.3f", (($tmpLine[10]-$::sampleHash{$sampName}{ONTARGET_MEAN_RATIO})/$::sampleHash{$sampName}{ONTARGET_SD_RATIO});
 
 				my ($cipos, $ciend) = getCiposCiend($chr, $start, $End, \@::ROIarray);
 				my $size = $End-$start;
 
 				next if abs($meanZscore) < $::minZscore;		
 				next if $meanSignal2Noise < 5;
-				#print "$chr\t$start\t$End\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnvType;SVLEN=$size;GC=$meanGC;MAP=$meanMap;GENE=$affectedROIs;REGIONS=$nexons;RRD=$tmpLine[10];MADRD=$MAD;CN=$copyNumber;SNR=$meanSignal2Noise;ZSCORE=$meanZscore\n";
-				print OUTFILE "$chr\t$start\t$End\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnvType;SVLEN=$size;GC=$meanGC;MAP=$meanMap;GENE=$affectedROIs;REGIONS=$nexons;RRD=$tmpLine[10];MADRD=$MAD;CN=$copyNumber;SNR=$meanSignal2Noise;ZSCORE=$meanZscore\n";
+				print OUTFILE "$chr\t$start\t$End\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnvType;SVLEN=$size;GC=$meanGC;MAP=$meanMap;";
+				print OUTFILE "GENE=$affectedROIs;REGIONS=$nexons;RRD=$tmpLine[10];MADRD=$MAD;CN=$copyNumber;SNR=$meanSignal2Noise;";
+				print OUTFILE "SNRC=$signal2noiseControls;ZSCORE=$meanZscore\n";
 			}
 
 			$sampName = basename($sampName);
@@ -551,15 +733,16 @@ sub getCiposCiend {
 				$bedfile   = "$::outDir/OFF_TARGET/$sampName.offtarget.bed";
 			}
 
-			my $cmd = "$::mergeSegments $rawCNVs $bedfile > $outMergedCNV";
+			my $cmd = "$::mergeSegments $rawMultipleExonCnv $bedfile > $mergedMultipleExonCnv";
 			print "$cmd\n" if $::verbose;			
 			system $cmd; 
 		
-			$cmd = "$::mergeCnvBreaks $breakFile $outMergedCNV | $::sort -V | $::uniq > $outputForCnvBreaks";
+			$cmd = "$::mergeCnvBreaks $breakFile $mergedMultipleExonCnv | $::sort -V | $::uniq > $multipleCnvAndBreaks";
 			print "$cmd\n" if $::verbose;	
 			system $cmd;
 
-			open (MERGED, "<", $outMergedCNV ) || die "ERROR: Unable to open $outMergedCNV\n";
+			# Plotting stuff to be deleted 
+			open (MERGED, "<", $mergedMultipleExonCnv ) || die "ERROR: Unable to open $mergedMultipleExonCnv\n";
 			while (my $line=<MERGED>) {
 
 				chomp $line;
@@ -671,17 +854,17 @@ sub getCiposCiend {
 		    }
 			close MERGED;
 
-		if (!-e $singleCalls) {
-			rename $singleTmp, $singleCalls;
+		if (!-e $singleExonCnv) {
+			rename $singleTmp, $singleExonCnv;
 		}
 		else {
-			$cmd = "$::cat $singleTmp $singleCalls | $::bedtools intersect -a stdin -b $rawCNVs -v | $::sort -V | $::uniq > $::outDir/merged.tmp.single.txt";
+			$cmd = "$::cat $singleTmp $singleExonCnv | $::bedtools intersect -a stdin -b $rawMultipleExonCnv -v | $::sort -V | $::uniq > $::outDir/merged.tmp.single.txt";
 			system $cmd;
 			
 			print "$cmd\n" if $::verbose;
-			unlink ($singleCalls);
+			unlink ($singleExonCnv);
 
-			$cmd = "mv $::outDir/merged.tmp.single.txt $singleCalls";
+			$cmd = "mv $::outDir/merged.tmp.single.txt $singleExonCnv";
 			system $cmd;
 			print "$cmd\n" if $::verbose;	
 
@@ -694,25 +877,23 @@ sub getCiposCiend {
 	
 	}
 	if ($type eq 'off-target'|| $type eq 'mixed') {
-			Utils::compressFile($ratioFile) if -s $ratioFile;
+		Utils::compressFile($ratioFile) if -s $ratioFile;
 	}
   }
 
-  Utils::compressFile($ratioFile);
+  Utils::compressFile($ratioFile) if -s $ratioFile;
 }
 
-################################################
+ ################################################
  #	        Analysing single-exon CNVs          #
  ################################################
 
  sub callSingleExonCNV {
 
-  print " INFO: Calling single-exon CNVs\n";
-
   my $outputDir = shift;
   my $analysis  = shift;
   
-  my @singleCallFiles = glob ("$outputDir/*single_calls.bed");
+  my @singleCallFiles = glob ("$outputDir/*raw.single.exon.cnv.bed");
   my $ratiosFile      = $::HoF{NORM_COVERAGE_ON} . ".gz";
   my $ungzRatioFile   = $::HoF{NORM_COVERAGE_ON};
 
@@ -729,8 +910,6 @@ sub getCiposCiend {
   my @tmpStr  = split (/\t/, $str);
   my @samples = @tmpStr[5..@tmpStr-1];
   
-  my $cmd;
-
   # Emptying reference id file
   foreach my $sample ( sort keys %::sampleHash ) {
 	@{$::sampleHash{$sample}{REF_ID}} = ();
@@ -764,10 +943,111 @@ sub getCiposCiend {
 	}
   }
 
+  open (MASTER_FILE, ">", "$outputDir/master_single_calls.bed");
+  foreach my $file (@singleCallFiles) {
+	my $sampleName = basename($file);
+	$sampleName =~s/.raw.single.exon.cnv.bed//;
+	open (IN,"<", $file) || die " ERROR: Unable to open $file\n"; 
+	while (my $line=<IN>){
+		chomp $line;
+		my @tmp = split("\t", $line);
+		print MASTER_FILE "$line\t$sampleName\n";
+	} 
+	close IN;
+	unlink($file);
+  } 
+  close MASTER_FILE;
+
+  print " INFO: Calling single-exon CNVs\n";
+
+  my $cmd = "$::Rscript $::analyzeSingleExonR --raw_calls $outputDir/master_single_calls.bed --coverage_data $ungzRatioFile ";
+  $cmd.= " --references $::HoF{REFERENCES} --min_zscore $::minZscore --min_s2n 5 --lower_del_cutoff $::lowerDelCutoff ";
+  $cmd.= " --upper_del_cutoff $::upperDelCutoff --lower_dup_cutoff $::lowerDupCutoff --output_dir $outputDir $::devNull";
+  system($cmd);
+
+  my @tmpRdata = glob("$outputDir/*single.exon.cnv.bed");
+  if (!@tmpRdata) {
+	  print " ERROR: Missing single exon tmp data\n";
+  } 
+
+  foreach my $sample( sort keys %::sampleHash ) {
+
+	my $tmpRcalls = "$outputDir/$sample.single.exon.cnv.bed";
+	if (!-e $tmpRcalls) {
+		next;
+	} 
+
+	my $toMergeSegs          = "$outputDir/$sample.tomerge.single.exon.cnv.bed";
+	my $mergedAdjacentRois   = "$outputDir/$sample.merged.multiple.exon.cnv.bed";
+	my $mergedSingleSegments = "$outputDir/$sample.merged.single.multiple.exon.cnv.bed";
+	my $mergedCnvBreakpoints = "$outputDir/$sample.merged.breaks.single.multiple.exon.cnv.bed"; 
+	my $breakpointCalls      = "$outputDir/$sample/$sample.breakpoints.bed";
+
+	if (-e $mergedAdjacentRois ) {
+		$cmd = "$::cat $mergedAdjacentRois > $toMergeSegs";
+		system $cmd;
+	}
+
+    open (IN, "<", $tmpRcalls) || die " ERROR: Unable to open $tmpRcalls\n";
+	open (OUT, ">>", $toMergeSegs) || die " ERROR: Unable to open $toMergeSegs\n";
+    while(my $line=<IN>) {
+    	chomp $line;
+		my @tmp = split("\t", $line); 
+
+		my $chr   = $tmp[0]; 
+		my $start = $tmp[1];
+		my $end   = $tmp[2];   
+
+		# Dumping results to BED
+		my $genename = $tmp[4];
+		$genename =~s/;/,/;
+
+		# Get GC and Mappability
+		my $GC  = int ($::ExonFeatures{"$chr\t$start\t$end"}{GC});
+		my $MAP = int ($::ExonFeatures{"$chr\t$start\t$end"}{MAP});
+
+		# Calculate confidence interval for imprecise events
+		my ($cipos, $ciend) = getCiposCiend($chr, $start, $end, \@::ROIarray);
+		my $cnv_type        = $tmp[3];
+		my $size            = $end-$start;   
+		my $testSampleRatio = $tmp[5];
+		my $s2nTest         = $tmp[6];
+		my $s2nControls     = $tmp[7];
+		my $zscore          = $tmp[8];
+		 
+		#chrX	31140035	31140047	DEL	NM_004006_78_79;DMD	0.653179190751445	20.3063211047918	13.3728451863809	-4.613666036998 
+		print OUT "$chr\t$start\t$end\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnv_type;SVLEN=$size;GENE=$genename;GC=$GC;";
+		print OUT "MAP=$MAP;REGIONS=1;RRD=$testSampleRatio;MADRD=.;SNR=$s2nTest;SNRC=$s2nControls;ZSCORE=$zscore\n";
+	}  
+	close IN;
+	close OUT;
+	unlink($tmpRcalls);
+
+	if (-e $toMergeSegs) {
+
+		# Re-segment single exon CNVs that may belong to longer CNVs 
+		$cmd = "perl $::mergeSegments $toMergeSegs $::bed > $mergedSingleSegments";
+		system $cmd;
+		print "$cmd\n" if $::verbose;
+
+		$mergedAdjacentRois = $mergedSingleSegments;
+	}
+
+	# Merge CNV and Breakpoint predictions if they point to the same variant
+	$cmd = "perl $::mergeCnvBreaks $breakpointCalls $mergedAdjacentRois ";
+	$cmd.= "| $::sort -V | $::uniq > $mergedCnvBreakpoints";
+	system $cmd;
+	print "$cmd\n" if $::verbose;
+
+	unlink($toMergeSegs);
+  } 
+  Utils::compressFile($ungzRatioFile);
+  return;
+
   foreach my $file (@singleCallFiles) {
 
     my $test_sample = basename($file);
-	$test_sample =~s/.single_calls.bed//;
+	$test_sample =~s/.single.exon.cnv.bed//;
 
 	my $toMergeSegs          = "$outputDir/TMP.tomerge.segments.$test_sample.bed";
 	my $mergedAdjacentRois   = "$outputDir/cnv_calls.merged.$test_sample.bed";
@@ -792,8 +1072,9 @@ sub getCiposCiend {
 		next if $seen{"$chr\t$start\t$end"} > 1;
 
 		my $str = `LC_ALL=C $::grep '$pattern' $ungzRatioFile`;
-		print "LC_ALL=C $::grep '$pattern' $ungzRatioFile\n" if $::verbose;
 		chomp $str;
+
+		print "LC_ALL=C $::grep '$pattern' $ungzRatioFile\n" if $::verbose;
 		
 		# Arrays for ratios and signal-2-noise 
 		my @arrOfTest = ();
@@ -866,7 +1147,7 @@ sub getCiposCiend {
 		my $tmpZscore = $zscore < 0 ? $zscore*-1 : $zscore;
 
 		if ($::verbose) {
-			print "$pattern=>s2nTest($s2nTest)\ts2nControls($s2nControls)\tZ-score($tmpZscore)\n";
+			print "$pattern=>s2nTest($s2nTest)\ts2nControls($s2nControls)\tZ-score($tmpZscore)\tSampleRatio=>$testSampleRatio\n";
 		}
 
 		if (-e $mergedAdjacentRois ) {
@@ -882,7 +1163,7 @@ sub getCiposCiend {
 		my $do_output = 0;
 		my $cnv_type = '.';
 
-		if ($s2nControls > 8 && $s2nTest > 9 && abs($tmpZscore) >= $::minZscore &&
+		if ($s2nControls > 5 && $s2nTest > 5 && abs($tmpZscore) >= $::minZscore &&
 		   ($testSampleRatio < $::sampleHash{$test_sample}{LOWER_LIMIT} ||
 		   $testSampleRatio > $::sampleHash{$test_sample}{UPPER_LIMIT})){
 
@@ -939,8 +1220,8 @@ sub getCiposCiend {
 			# Calculate confidence interval for imprecise events
 			my ($cipos, $ciend) = getCiposCiend($tmp[0], $tmp[1], $tmp[2], \@::ROIarray);
 
-			print TMP "$tmp[0]\t$tmp[1]\t$tmp[2]\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnv_type;SVLEN=$size;GENE=$genename;GC=$GC;MAP=$MAP;REGIONS=1;RRD=$testSampleRatio;MADRD=$MAD;SNR=$s2nTest;S2N_CONTROLS=$s2nControls;ZSCORE=$zscore\n";
-			print BED "$tmp[0]\t$tmp[1]\t$tmp[2]\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnv_type;SVLEN=$size;GENE=$genename;GC=$GC;MAP=$MAP;REGIONS=1;RRD=$testSampleRatio;MADRD=$MAD;SNR=$s2nTest;S2N_CONTROLS=$s2nControls;ZSCORE=$zscore\n";
+			print TMP "$tmp[0]\t$tmp[1]\t$tmp[2]\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnv_type;SVLEN=$size;GENE=$genename;GC=$GC;MAP=$MAP;REGIONS=1;RRD=$testSampleRatio;MADRD=$MAD;SNR=$s2nTest;SNRC=$s2nControls;ZSCORE=$zscore\n";
+			print BED "$tmp[0]\t$tmp[1]\t$tmp[2]\tIMPRECISE;CIPOS=$cipos;CIEND=$ciend;SVTYPE=$cnv_type;SVLEN=$size;GENE=$genename;GC=$GC;MAP=$MAP;REGIONS=1;RRD=$testSampleRatio;MADRD=$MAD;SNR=$s2nTest;SNRC=$s2nControls;ZSCORE=$zscore\n";
 		}
 	
 		close BED;
@@ -958,17 +1239,17 @@ sub getCiposCiend {
 		writePlotDataFromSegments($mergedSingleSegments, $test_sample, $outputDir);
 
 		$mergedAdjacentRois = $mergedSingleSegments;
-		unlink ($toMergeSegs);
+		#unlink ($toMergeSegs);
 	}
 
 	# Merge CNV and Breakpoint predictions if they point to the same variant
-	$cmd = "perl $::mergeCnvBreaks $outputDir/$test_sample/$test_sample.breakpoints.bed $mergedAdjacentRois | $::sort -V | $::uniq > $mergedCnvBreakpoints";
+	$cmd = "perl $::mergeCnvBreaks $outputDir/$test_sample/$test_sample.breakpoints.bed $mergedAdjacentRois ";
+	$cmd.= "| $::sort -V | $::uniq > $mergedCnvBreakpoints";
 	system $cmd;
 	print "$cmd\n" if $::verbose;
 
-	unlink ($mergedSingleSegments);
+	#unlink ($mergedSingleSegments);
  }
-
  #unlink("$outputDir/$::outName.norm_bylib_coverage_noheader.bed");
  Utils::compressFile($ungzRatioFile);
 }
@@ -1222,12 +1503,12 @@ sub appendVAF {
 	}
 }
 
- ########################################################
- #	  Filtering CNV predictions when:		            #
- #	- Intron is small (less than 200 bp)		        #
- #	- Intron has enough coverage ( >30X)		        #
- #	- Intron does not have any breakpoint support	    #
- ########################################################
+ #################   DEPRECATED  #####################
+ #	  Filtering CNV predictions when:		         #
+ #	- Intron is small (less than 200 bp)		     #
+ #	- Intron has enough coverage ( >30X)		     #
+ #	- Intron does not have any breakpoint support	 #
+ #####################################################
 
  sub filterCNVsByBreakpoint {
 	

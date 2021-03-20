@@ -5,7 +5,11 @@ package VCF;
 use strict;
 use warnings;
 use File::Basename;
-my @arrFields = ( "SVTYPE", "CIPOS", "CIEND", "SVLEN", "EV", "REGIONS", "GENE", "MAPQ", "KDIV", "GC", "MAP", "BR", "ASBR", "PE", "PPE", "RRD", "MADRD", "CN", "SNR", "ZSCORE", "PRD", "NSNV", "BAF");
+
+
+my @arrFields = ( "SVTYPE", "CIPOS", "CIEND", "SVLEN", "EV", "REGIONS", 
+"GENE", "MAPQ", "KDIV", "GC", "MAP", "BR", "ASBR", "PE", "PPE", "RRD", 
+"MADRD", "CN", "SNR", "SNRC", "ZSCORE", "PRD", "NSNV", "BAF", "CONF_SCORE");
 
 sub generate {
 
@@ -40,12 +44,11 @@ sub generate {
 ###########################
 sub parse {
     my $line = shift;
-    my @t = split (/\t/, $line);
 
-    my @tmp = split (/;/, $t[3]);
+    my @t = split (/\t/, $line);
+    my @tmp  = split (/;/, $t[3]);
     my $size = $t[2]-$t[1];
 
-   
     my %hash = (
         PRECISION => $tmp[0],
         SVTYPE => "SVTYPE=" . fetchPattern("SVTYPE", \@tmp),
@@ -67,10 +70,12 @@ sub parse {
         CN     => "CN=" . fetchPattern("CN", \@tmp),
         MADRD  => "MADRD=" . fetchPattern("MADRD", \@tmp),
         SNR    => "SNR=" . fetchPattern("SNR", \@tmp),
+        SNRC   => "SNRC=" . fetchPattern("SNRC",\@tmp),
         ZSCORE => "ZSCORE=" . fetchPattern("ZSCORE", \@tmp),
         PRD    => "PRD=" . fetchPattern("PRD", \@tmp),
         NSNV   => "NSNV=" .fetchPattern("NSNV", \@tmp),
-        BAF    => "BAF=" . fetchPattern("BAF", \@tmp)
+        BAF    => "BAF=" . fetchPattern("BAF", \@tmp),
+        CONF_SCORE => "CONF_SCORE=". fetchPattern("CONF_SCORE",\@tmp)
     );
     return %hash;
 }
@@ -120,12 +125,14 @@ sub printHeader {
 ##INFO=<ID=PPE,Number=1,Type=Integer,Description=\"Phred-scale p-value using Poisson distribution on clustered discordant pairs\">
 ##INFO=<ID=RRD,Number=1,Type=Float,Description=\"Read-depth ratio at flanking coordinates\">
 ##INFO=<ID=MADRD,Number=1,Type=Float,Description=\"Median Absoute Deviation of the segmented read-depth\">
-##INFO=<ID=SNR,Number=1,Type=Float,Description=\"Signal to noise of the read depth ratios\">
+##INFO=<ID=SNR,Number=1,Type=Float,Description=\"Signal to noise of the read depth ratios for the case sample\">
+##INFO=<ID=SNRC,Number=1,Type=Float,Description=\"Signal to noise of the read depth ratios for all control samples\">
 ##INFO=<ID=ZSCORE,Number=1,Type=Float,Description=\"Number of std.devs the target is from the reference mean\">
 ##INFO=<ID=PRD,Number=1,Type=Integer,Description=\"Phred-scale p-value using Fisher's exact test on flanking read-depth\">
 ##INFO=<ID=CN,Number=1,Type=Integer,Description=\"Copy number of segment with breakend support\">
 ##INFO=<ID=NSNV,Number=1,Type=Float,Description=\"Total SNVs found within the SV\">
 ##INFO=<ID=BAF,Number=1,Type=Float,Description=\"Mean B-allele frequency of the SNVs found within the SV\">
+##INFO=<ID=CONF_SCORE,Number=1,Type=Float,Description=\"Confidence score of the variant call (0-1)\">
 ##FILTER=<ID=PASS,Description=\"Variant passes filtering criteria\">
 ##FILTER=<ID=ProcessedPseudogene,Description=\"Variant probably comes from a processed pseudogene\">
 ##ALT=<ID=DEL,Description=\"Deletion\">

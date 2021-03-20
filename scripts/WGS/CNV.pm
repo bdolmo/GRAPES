@@ -46,8 +46,6 @@ sub call {
     my $outWithMapp = "$outDir/$outName.MAP.CNV.bed";
     $cmd .= "$::bedtools intersect -a $outDir/$outName.counts_window.bed.gz -b $outDir/CNV.tmp.txt -wo";
     $cmd .= "| $::awk '{ size=\$9-\$8; marginal=100*(\$NF*\$6)/size; print \$7\"\t\"\$8\"\t\"\$9\"\t\"\$10\"\t\"\$6\"\t\"\$11\"\t\"marginal}'";
-    #$cmd .= "| $::awk '{ size=\$9-\$8; marginal=100*(\$NF*\$6)/size; print \$7\"\t\"\$8\"\t\"\$9\"\t\"\$10\"\t\"\$6\"\t\"\$11\"\t\"marginal}' > $outWithMapp";
-
     $cmd .= "| perl $::extractMapp | $::sort -V  > $outWithMapp";
 
     system $cmd if !-e $outWithMapp;

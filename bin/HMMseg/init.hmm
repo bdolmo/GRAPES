@@ -1,0 +1,19 @@
+HMMSEG 3
+State Start
+Emissions none
+Transitions 6.733803409057191E-161 1.1196564470821786E-287 1.0 1.1196564470821786E-287 1.1196564470821786E-287
+State 0
+Emissions  0.1 0.01
+Transitions 0.9 0.025 0.025 0.025 0.025
+State 1
+Emissions  0.5 0.01
+Transitions 0.025 0.9 0.025 0.025 0.025
+State 2
+Emissions  1 0.02
+Transitions 0.025 0.025 0.9 0.025 0.025
+State 3
+Emissions  1.5 0.1
+Transitions 0.025 0.025 0.025 0.9 0.025
+State 4
+Emissions  2 0.1
+Transitions 0.025 0.025 0.025 0.025 0.9

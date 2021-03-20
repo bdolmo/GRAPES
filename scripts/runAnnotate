@@ -9,29 +9,31 @@ use Config;
 use Sort::Key::Natural qw( natsort );
 use List::MoreUtils qw{uniq};
 our $dirname = dirname (__FILE__);
+use lib (dirname (__FILE__));
+use WES::Annotate;
 
-my $cut  = `which cut`;
+our $cut  = `which cut`;
 chomp $cut;
 if (!$cut) {
 	print "ERROR: cut command not found\n";
 	exit;
 }
 
-my $cat  = `which cat`;
+our $cat  = `which cat`;
 chomp $cat;
 if (!$cat) {
 	print "ERROR: cat command not found\n";
 		exit;
 }
 
-my $head  = `which head`;
+our $head  = `which head`;
 chomp $head;
 if (!$head) {
 	print "ERROR: head command not found\n";
 	exit;
 }
 
-my $zcat  = `which zcat`;
+our $zcat  = `which zcat`;
 chomp $zcat;
 if (!$zcat) {
 	print "ERROR: zcat command not found\n";
@@ -48,14 +50,14 @@ else {
   $sort = `which sort`; chomp $sort;
 }
 
-my $awk  = `which awk`;
+our $awk  = `which awk`;
 chomp $awk;
 if (!$awk) {
 	print "ERROR: awk command not found\n";
 	exit;	
 }
 
-my $bedtools = `which bedtools`;
+our $bedtools = `which bedtools`;
 chomp $bedtools;
 
 if (!$bedtools) {
@@ -70,319 +72,54 @@ else {
     }
 }
 
-my $gnomadBed  = "$dirname/../db/gnomad/gnomad_v2_sv.sites.chr.bed.gz";
+our $gnomADvcf	 = "$dirname/../db/gnomad/gnomad_v2.1_sv.sites.vcf.gz";
 
-if (!-e $gnomadBed) {
-    print " ERROR: $gnomadBed not found!\n";
+if (!-e $gnomADvcf) {
+    print " ERROR: $gnomADvcf not found!\n";
     exit;
 }
 
 my $inputVCF;
-my $annotVCF;
 my $minOlap;
 my $outDir;
 
 # Displaying usage panel
-Help () if (@ARGV<3 or !GetOptions(
-	'in=s' =>\$inputVCF,
+helpAnnot () if (@ARGV<3 or !GetOptions(
+	'input_vcf=s' =>\$inputVCF,
     'l=f' =>\$minOlap,
 	'o=s' =>\$outDir
     )
 );
 
-$annotVCF = basename($inputVCF);
-$annotVCF =~s/.vcf/.annotated.vcf/;
+mkdir $outDir;
+
+ if (!-e "$inputVCF") {
+     print " ERROR: Input VCF $inputVCF does not exist!\n";
+     exit;
+ }
+
+ if ($minOlap) {
+     if ($minOlap > 1) {
+         print " ERROR: minimum overlap (-m) param must be between 0 and 1\n";
+         exit;
+     }
+ }
+ else {
+     $minOlap = 0.7;
+ }
+
+print " INFO: Annotating VCFs with gnomAD\n";
+my $annotVCF = Annotate::doAnnotation($inputVCF, $outDir, $minOlap);
+
+################
+sub helpAnnot {
+
+    print"
+    Usage:  ./GRAPES annotate [OPTIONS] 
+    Options:
+    -i  STRING  Input VCF file
+    -o  STRING  Output directory
+    -l  FLOAT   Reciprocal overlap fraction\n\n";
+    exit;
 
-#checkAndNormBed($inputBed);
-
-#$inputBed = "$outDir/sorted_input.bed";
-
-my $checkChr = `$cat $inputVCF | $grep -v '#' | $cut -f 1 | $head -1`;
-chomp $checkChr;
-
-my $cmd;
-
-$cmd = "$grep '^#' $inputVCF > $outDir/input.header.vcf";
-system $cmd;
-
-sub selectVariant {
-
-    # Here we will subset specific sv's from the initial VCF
-
-    my $infile = shift;
-    my $vartype= shift;
-    my $header = shift;
-
-    my $outfile = "$outDir/$vartype.vcf";
-
-    # Get SVTYPE from initial vcf and sort it naturally
-    my $cmd = "$grep 'SVTYPE=$vartype' $infile | $sort -V > $outDir/$vartype.tmp.vcf";
-    system $cmd;
-
-    # Get VCF header and concatenate it with svtype-specific file to create a valid vcf
-    $cmd = "$grep '^#' $infile > $outDir/$vartype.header.vcf";
-    system $cmd;
-
-    $cmd = "$cat $outDir/$vartype.header.vcf $outDir/$vartype.tmp.vcf > $outDir/$vartype.vcf";
-    system $cmd;
-    return "$outDir/$vartype.vcf";
-}
-
-my $delVCF = selectVariant($inputVCF, "DEL", "$outDir/input.header.vcf");
-my $dupVCF = selectVariant($inputVCF, "DUP", "$outDir/input.header.vcf");
-my $invVCF = selectVariant($inputVCF, "INV", "$outDir/input.header.vcf");
-
-my @arrDel;
-my @arrDup;
-my @arrInv;
-    
-#1 Annotate deletions
-if (!-z $delVCF ) {
-    my $delsRef = annotateSV($delVCF, $gnomadBed, "DEL");
-    @arrDel = @$delsRef;
-}
-#2 Annotate duplications/insertions
-if (!-z $dupVCF ) {
-    my $dupsRef = annotateSV($dupVCF, $gnomadBed, "DUP");
-    @arrDup = @$dupsRef;
-}
-#3 Annotate inversions
-if (!-z $invVCF ) {
-    my $invsRef = annotateSV($invVCF, $gnomadBed, "INV");
-    @arrInv = @$invsRef;
-}
-
-my @annotSV = (@arrDel, @arrDup, @arrInv);
-@annotSV = natsort @annotSV;
-
-open (NH, ">", "$outDir/noHeader.vcf") || die " ERROR: Unable to open $outDir/noHeader.vcf\n";
-foreach my $call (uniq @annotSV) {
-    print NH "$call\n";
-}
-close NH;
-
-my $newHeader = appendAnnotInfo2VcfHeader("$outDir/input.header.vcf");
-
-$cmd = "$cat $newHeader $outDir/noHeader.vcf > $outDir/$annotVCF";
-system $cmd;
-
-unlink("$outDir/noHeader.vcf", "$outDir/input.header.vcf",);
-unlink $delVCF if -e $delVCF;
-unlink $dupVCF if -e $dupVCF;
-unlink $invVCF if -e $invVCF;
-
-
-#########################################
-sub annotateSV {
-
-    my $callsBed = shift;
-    my $gnomadBed= shift;
-    my $svtype   = shift;
-
-    if ($svtype eq 'DEL') {
-        $svtype = 'DEL\|MCNV';
-    }
-    if ($svtype eq 'DUP') {
-        $svtype = 'DUP\|MCNV';
-    }
-
-    my @arrOut = ();
-    my $str;
-
-    if ($checkChr =~/^chr/ ) {
-        $str = `$zcat $gnomadBed | $grep -vP "^#" | $grep -e '$svtype' | $bedtools intersect -a stdin -b $callsBed -f $minOlap -r -wao | $grep -vP "\t-1"`;
-    }
-    else {
-        $str = `$zcat $gnomadBed | $grep -vP "^#" | $grep -e '$svtype' | $awk '{ gsub(/chr/,"") }' | $bedtools intersect -a stdin -b $callsBed -f $minOlap -r -wao | $grep -vP "\t-1"`;
-    }
-    chomp $str;
-
-    my %allVars = storeSV($callsBed);
-    my %annotVars = ();
-
-    my $AFR_NUMBER = ".";
-    my $AFR_COUNT  = ".";
-    my $AFR_FREQ   = ".";
-
-    my $AMR_NUMBER = ".";
-    my $AMR_COUNT  = ".";
-    my $AMR_FREQ   = ".";
-
-    my $EAS_NUMBER = ".";
-    my $EAS_COUNT  = ".";
-    my $EAS_FREQ   = ".";
-
-    my $EUR_NUMBER = ".";
-    my $EUR_COUNT  = ".";
-    my $EUR_FREQ   = ".";
-
-    my $OTH_NUMBER = ".";
-    my $OTH_COUNT  = ".";
-    my $OTH_FREQ   = "."; 
-
-    my @tmpStr = split(/\n/, $str);
-#chr2	85939097	85939372	gnomAD_v2_DEL_2_23285	DEL	275	PASS	RD,SR	manta	2	NA	NA	NA	NA	NA	False	False	NA	NA	NA	NA	NA	NA	NA	NA	ATOH8	True	NA	15954	308	0.0193060003221035	7977	7669	308	0	0.961389005184174	0.0386109985411167	0	0.0649909973144531	8312	40	0.004811999853700399	4156	4116	40	0	0.990374982357025	0.00962464045733213	0	1194	47	0.03936300054192543	597	550	47	0	0.921272993087769	0.0787269994616508	0	1154	75	0.06499099731445312	577	502	75	0	0.870016992092133	0.129982993006706	0	5014	139	0.02772199921309948	2507	2368	139	0	0.94455498456955	0.0554447993636131	0	280	70.02500000037252903	140	133	7	0	0.949999988079071	0.0500000007450581	0	chr2	85939023	.	N	<DEL>	.	PASS	IMPRECISE;END=85939540;SVTYPE=DEL;CNVR=no;SVLEN=517;MQ=58;EV=PE;KDIV=0;GC=0.58;BR=0;ASBR=0;PE=9;PPE=92;RRD=0.73;MADRD=0.10;PRD=13;NSNV=0;HSNVR=0	GT:CN	./.:.	275
-
-    foreach my $hit (@tmpStr) {
-       # print "$hit\n";
-        my @tmp = split (/\t/, $hit);
-        
-        my $evidence = $tmp[7];
-        my $algorithms = $tmp[8];
-
-        my $AN = $tmp[28];
-        my $AC = $tmp[29];
-
-        my @tmpAF = split (/,/, $tmp[30]);
-
-        my $AF = treatFrequency ($tmp[30]); 
-
-        $AFR_NUMBER= $tmp[39];
-        $AFR_COUNT = $tmp[40];
-        $AFR_FREQ  = treatFrequency ($tmp[41]); 
-
-        $AMR_NUMBER= $tmp[49];
-        $AMR_COUNT = $tmp[50];
-        $AMR_FREQ  = treatFrequency ($tmp[51]); 
-
-        $EAS_NUMBER= $tmp[59];
-        $EAS_COUNT = $tmp[60];
-        $EAS_FREQ  = treatFrequency ($tmp[61]); 
-
-        $EUR_NUMBER= $tmp[69];
-        $EUR_COUNT = $tmp[70];
-        $EUR_FREQ  = treatFrequency ($tmp[71]); 
-
-        $OTH_NUMBER= $tmp[79];
-        $OTH_COUNT = $tmp[80];
-        $OTH_FREQ  = treatFrequency ($tmp[81]); 
-
-        $annotVars{"$tmp[89]\t$tmp[90]\t$tmp[91]\t$tmp[92]"}++;
-        my $oldVcfInfo = "$tmp[89]\t$tmp[90]\t$tmp[91]\t$tmp[92]\t$tmp[93]\t$tmp[94]\t$tmp[95]\t$tmp[96]";
-
-        push @arrOut, "$oldVcfInfo;gnomADevidence=$evidence;AN=$AN;AC=$AC;AF=$AF;AFR_AC=$AFR_COUNT;AFR_AF=$AFR_FREQ;AMR_AC=$AMR_COUNT;AMR_AF=$AMR_FREQ;EAS_AC=$EAS_COUNT;EAS_AF=$EAS_FREQ;EUR_AC=$EUR_COUNT;EUR_AF=$EUR_FREQ;OTH_AC=$OTH_COUNT;OTH_AF=$OTH_FREQ\t$tmp[97]\t$tmp[98]";
-    }
-
-    foreach my $var ( natsort keys %allVars ) {
-
-        if (!exists $annotVars{$var}) {
-            push @arrOut, "$var;gnomADevidence=.;AN=.;AC=.;AF=.;AFR_AC=.;AFR_AF=.;AMR_AC=.;AMR_AF=.;EAS_AC=.;EAS_AF=.;EUR_AC=.;EUR_AF=.;OTH_AC=.;OTH_AF=.";
-
-        }
-    }
-
-    return \@arrOut;
-}
-
-#########################################
-sub treatFrequency {
-
-    my $freq = shift;
-
-    my @tmpAF = split (/,/, $freq);
-    my $AF;
-    if (@tmpAF > 1) {
-        my @join = ();
-        foreach my $val (@tmpAF) {
-            push @join, sprintf "%.6f", $val;
-        }
-        $AF = join (",", @join);
-    }
-    else {
-        $AF = sprintf "%.6f", $freq;
-    }
-    return $AF;    
-}
-#########################################
-sub Help {
-	print "\n
-Usage:  ./GRAPES annotate -in <VCF> -o <OUTPUT_DIR> -l <MIN_OLAP>\n";
-exit; 
-}
-
-#########################################
-sub checkAndNormBed {
-
-    my $input = shift;
-    print "$input\n";
-
-    # 1. Check if total number of columns are at least 4
-    open (IN, "<", $input) || die " Unable to open $input\n";
-    open (TMP, ">", "$outDir/tmp.input.annotate.bed") || die " ERROR: Unable to open $outDir/tmp.input.annotate.bed\n";
-    while (my $line=<IN>) {
-        chomp $line;
-        next if $line=~/^#/;
-        my @tmp = split (/\t/, $line);
-        
-        if (@tmp < 4) {
-            print " WARNING: BED entry $line has less than 4 fields. Annotating all available DEL/DUP/INV overlapping the entry\n";
-            print TMP "$tmp[0]\t$tmp[1]\t$tmp[2]\tDEL;INV;DUP\n";
-        }
-        else {
-            print TMP "$tmp[0]\t$tmp[1]\t$tmp[2]\t$tmp[3]\n";
-        }
-    }
-    close IN;
-    close TMP;
-
-    # Sort
-    my $cmd = "$sort -V $outDir/tmp.input.annotate.bed > $outDir/sorted_input.bed";
-    system $cmd;
-
-    unlink ("$outDir/tmp.input.annotate.bed");
-}
-
-sub appendAnnotInfo2VcfHeader {
-
-    my $header = shift;
-    my $flag = 0;
-
-    my $toAdd = "##INFO=<ID=gnomADevidence,Number=1,Type=String,Description=\"gnomaAD SV source evidence\">
-##INFO=<ID=AN,Number=1,Type=Integer,Description=\"gnomAD allele number\">
-##INFO=<ID=AC,Number=1,Type=Integer,Description=\"gnomAD allele count\">
-##INFO=<ID=AF,Number=1,Type=Float,Description=\"gnomAD allele frequency\">
-##INFO=<ID=AFR_AC,Number=1,Type=Integer,Description=\"gnomAD african count\">
-##INFO=<ID=AFR_AF,Number=1,Type=Float,Description=\"gnomAD african frequency\">
-##INFO=<ID=AMR_AC,Number=1,Type=Integer,Description=\"gnomAD american count\">
-##INFO=<ID=AMR_AF,Number=1,Type=Integer,Description=\"gnomAD american frequency\">
-##INFO=<ID=EAS_AC,Number=1,Type=Integer,Description=\"gnomAD east-asian count\">
-##INFO=<ID=EAS_AF,Number=1,Type=Float,Description=\"gnomAD east-asian frequency\">
-##INFO=<ID=EUR_AC,Number=1,Type=Integer,Description=\"gnomAD european count\">
-##INFO=<ID=EUR_AF,Number=1,Type=Float,Description=\"gnomAD european frequency\">
-##INFO=<ID=OTH_AC,Number=1,Type=Integer,Description=\"gnomAD other count\">
-##INFO=<ID=OTH_AF,Number=1,Type=Float,Description=\"gnomAD other frequency\">";
-
-    open (OLDHEADER, "<", "$header") || die " ERROR: Unable to open $header\n";
-    open (NEWHEADER, ">", "$outDir/newheader.txt") || die " ERROR: Unable to open $outDir/newheader.txt\n";
-    while (my $line=<OLDHEADER>) {
-        chomp $line;
-        if ($line=~/##ALT/ && !$flag) {
-            $flag = 1;
-            print NEWHEADER "$toAdd\n";
-        }
-        else {
-            print NEWHEADER "$line\n";
-        }
-    }
-    close OLDHEADER;
-    close NEWHEADER;
-
-    return "$outDir/newheader.txt";
-}
-
-
-
-#########################################
-sub storeSV {
-
-    my $input = shift;
-    my %hash;
-    open (IN, "<", $input) || die " Unable to open $input\n";
-    while (my $line=<IN>) {
-        next if $line =~/^#/;
-        chomp $line;
-        $hash{$line} = $line;
-    }
-    close IN;
-    return %hash;
 }

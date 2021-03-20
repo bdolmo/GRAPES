@@ -433,12 +433,6 @@ use Sort::Key::Natural qw(natsort);
 			my $gc_int = int ($tmp[4]) +1;
 			my $length = $tmp[2] - $tmp[1] +10;
 
-			if ($tmp[1] eq "31381322") {
-				print "$line\t$gc_int\n";
-			}
-
-
-
 			# Filling hash of sample's normalized coverage
 			for (my $i = 5; $i <= @tmp-1; $i++) {
 
@@ -465,9 +459,6 @@ use Sort::Key::Natural qw(natsort);
 
 				# Region GC
 				$hashOfRegion->{$coordinate}->{ $sample }->{GC} = $gc;
-
-					
-
 
 				# Filtering criteria
 				if ($type eq 'ontarget') {

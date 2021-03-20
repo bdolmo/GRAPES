@@ -34,31 +34,33 @@ varCall::varCall( std::string _bamFile, std::string _genome, int _minMapQ, int _
 	minHomRatio= _minHomRatio;
 }
 
-double  calculateInsertSizeLimits (std::string bamFile) {
+double calculateInsertSizeLimits (std::string bamFile) {
 
 	BamReader reader;
 	reader.Open(bamFile);
 	BamRecord r;
-	int count = 0;
 
 	BamHeader myHeader;
 	myHeader = reader.Header();
 
 	std::vector<int> isizes;
-	int sum = 0;
+	std::vector<int> positions;
+
 	const int maxISize = 1000;
 	double accum = 0.0;
+	int readCounts = 0;
+	int count = 0;
+	int sum = 0;
 	int readLength;
-	int read_counts = 0;
-	std::vector<int> positions;
 	while (reader.GetNextRecord(r) ) {
 	
-		if (r.ChrID() < 1 || r.ChrID() >= 25 || r.MateChrID()  >= 25 ) { 
+		if (r.ChrID() < 1 || r.MateChrID() < 1 || r.ChrID() >= 25 || r.MateChrID() >= 25 ) { 
 			continue; 
 		}
-
 		std::string chrom = myHeader.IDtoName(r.ChrID());
-		if (chrom == "chrM" || chrom == "MT" || chrom == "M" ) { continue; }
+		if (chrom == "chrM" || chrom == "MT" || chrom == "M" ) { 
+			continue; 
+		}
 
 		count++;
 		if (count > 5000000) {
@@ -66,7 +68,7 @@ double  calculateInsertSizeLimits (std::string bamFile) {
 		}
 
 		readLength = r.Length();
-		read_counts++;
+		readCounts++;
 		positions.push_back(r.Position());
 		if (r.ProperPair() && r.ProperOrientation())  {  
 			count++;
@@ -77,22 +79,19 @@ double  calculateInsertSizeLimits (std::string bamFile) {
 		}
 	}
 
-	double mean =  sum / isizes.size();
-
 	int distance = positions[positions.size()-1] - positions[0];
-
-	double mean_coverage = ( (double)read_counts/(double)distance )*readLength;
-
-	for (auto& i : isizes) {
-    	accum += (i - mean) * (i - mean);
-	}
-	double stdev = sqrt(accum / (isizes.size()-1));
-	return mean_coverage;
+	double meanCoverage = ( (double)readCounts/(double)distance )*readLength;
+	//double mean =  sum / isizes.size();
+	// for (auto& i : isizes) {
+    // 	accum += (i - mean) * (i - mean);
+	// }
+	// double stdev = sqrt(accum / (isizes.size()-1));
+	return meanCoverage;
 }
 
 
 int main (int argc, char* argv[]) {
-	if (argc < 3) {
+	if (argc < 5) {
 		cout << "Usage: ADDINFO <BED> <BAM> <REFERENCE> <OUTBED> <CPU_CORES>" << endl;
 		return 0;
 	}
@@ -115,34 +114,13 @@ int main (int argc, char* argv[]) {
 
 	ifstream bedFile;
   	bedFile.open (inBed);
-
-        if (bedFile.is_open()) {
+    if (bedFile.is_open()) {
 		string line;
 		while ( std::getline (bedFile, line)) {
 			strV.push_back(line);
 		}
 	}
 	bedFile.close();
-
-	/*cout << "#chr" << "\t";
-	cout << "start" << "\t";
-	cout << "end" << "\t";
-	cout << "precision" << "\t";
-	cout << "svtype" << "\t";
-	cout << "fallsInCNVR" << "\t";
-	cout << "svlen" << "\t";
-	cout << "mapq" << "\t";
-	cout << "kdiv" << "\t";
-	cout << "breakreads" << "\t";
-	cout << "assembled" << "\t";
-	cout << "discordants" << "\t";
-	cout << "ratio_RD" << "\t";
-	cout << "MAD_RD" << "\t";
-	cout << "phred_discordant" << "\t";
-	cout << "phred_RD" << "\t";
-	cout << "totalSNV" << "\t";
-	cout << "Homozygous_ratio" << "\t";
-	cout << "gc_content" << endl;*/
 
   	//boost::progress_display show_progress( strV.size() );
 
@@ -152,8 +130,8 @@ int main (int argc, char* argv[]) {
 		for (int i = 0; i < strV.size(); i++) {
 
 				string line = strV[i];
-
 				vector<string> tmp = split(line, '\t');
+
 				string chr      = tmp[0];
 				int start       = stoi(tmp[1]);
 				int end         = stoi(tmp[2]);
@@ -181,7 +159,7 @@ int main (int argc, char* argv[]) {
 				}
 
 				string LOHsupp = tmp[15];
-				int cumulative = stoi(tmp[16]);
+				long int cumulative = stol(tmp[16]);
 				int numInserts = stoi(tmp[17]);
 				string evidence = tmp[18];
 	
@@ -235,21 +213,21 @@ int main (int argc, char* argv[]) {
 				int totalSNV = 0;
 				float homRatio = 0.00;
 
-				if (svtype == "DEL" && fallsInCNVR == "no" && svlen > 300) {
+				// if (svtype == "DEL" && fallsInCNVR == "no" && svlen > 300) {
 
-					int tmpStart = start;
-					int tmpEnd   = end;
+				// 	int tmpStart = start;
+				// 	int tmpEnd   = end;
 
-					// Setting a padding distance on imprecise calls to avoid calling false positive SNV on breakpoint boundaries
-					if (start+100 < end -100) {
-						tmpStart = start+100;
-						tmpEnd   = end-100;
-					}
+				// 	// Setting a padding distance on imprecise calls to avoid calling false positive SNV on breakpoint boundaries
+				// 	if (start+100 < end -100) {
+				// 		tmpStart = start+100;
+				// 		tmpEnd   = end-100;
+				// 	}
 
-					SNV.callSNV(chr, tmpStart, tmpEnd, svtype);
-					totalSNV = SNV.getLohVars();
-					homRatio = SNV.getHomRatio();
-				}
+				// 	SNV.callSNV(chr, tmpStart, tmpEnd, svtype);
+				// 	totalSNV = SNV.getLohVars();
+				// 	homRatio = SNV.getHomRatio();
+				// }
 				float gc_content = 0.00;
 				gc_content = computeGC( chr, start, end, reference);
 				#pragma omp critical

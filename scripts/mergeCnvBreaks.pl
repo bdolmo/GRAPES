@@ -40,15 +40,14 @@ if (-e $breakPointCalls && !-z $breakPointCalls && -e $cnvCalls && !-z $cnvCalls
     chomp $noStrA;
     my @tmpNoStrA = split (/\n/, $noStrA);
     foreach my $var (@tmpNoStrA) {
-	print "$var\n";
+	    print "$var\n";
     }
-
 
     my $noStrB = `$bedtools intersect -b $cnvCalls -a $breakPointCalls -v`;
     chomp $noStrB;
     my @tmpNoStrB = split (/\n/, $noStrB);
     foreach my $var (@tmpNoStrB) {
-	print "$var\n";
+	    print "$var\n";
     }
     my $str = `$bedtools intersect -a $cnvCalls -b $breakPointCalls -f 0.2 -r -wao`;
     chomp $str;
@@ -107,6 +106,9 @@ if (-e $breakPointCalls && !-z $breakPointCalls && -e $cnvCalls && !-z $cnvCalls
             my @s2n_A = grep ($_ =~/SNR=/, @tmpA);
             my @s2n_B = grep ($_ =~/SNR=/, @tmpB);
 
+            my @s2nc_A = grep ($_ =~/SNRC=/, @tmpA);
+            my @s2nc_B = grep ($_ =~/SNRC=/, @tmpB);
+
             my @zscore_A = grep ($_ =~/ZSCORE=/, @tmpA);
             my @zscore_B = grep ($_ =~/ZSCORE=/, @tmpB);
 
@@ -118,29 +120,29 @@ if (-e $breakPointCalls && !-z $breakPointCalls && -e $cnvCalls && !-z $cnvCalls
 
             if ($infoA =~/=DEL/ && $infoB =~/=DEL/) {
                 if ($infoA =~/PRECISE/ &&  $infoB =~/IMPRECISE/) {
-                    print "$tmp[0]\t$tmp[1]\t$tmp[2]\t$tmp[3];$ciposB;$ciendB;$genesB[0];$ratiosB[0];$regionsB[0];$s2n_B[0];$zscore_B[0];$GC_B[0];$MAP_B[0]\n";
+                    print "$tmp[0]\t$tmp[1]\t$tmp[2]\t$tmp[3];$ciposB;$ciendB;$genesB[0];$ratiosB[0];$regionsB[0];$s2n_B[0];$s2nc_B[0];$zscore_B[0];$GC_B[0];$MAP_B[0]\n";
                 }
                 if ($infoB =~/PRECISE/ &&  $infoA =~/IMPRECISE/) {
-                    print "$tmp[4]\t$tmp[5]\t$tmp[6]\t$tmp[7];$ciposA;$ciendA;$genesA[0];$ratiosA[0];$regionsA[0];$s2n_A[0];$zscore_A[0];$GC_A[0];$MAP_A[0]\n";
+                    print "$tmp[4]\t$tmp[5]\t$tmp[6]\t$tmp[7];$ciposA;$ciendA;$genesA[0];$ratiosA[0];$regionsA[0];$s2n_A[0];$s2nc_A[0];$zscore_A[0];$GC_A[0];$MAP_A[0]\n";
                 }
             }
             if ($infoA =~/=DUP/ && $infoB =~/=DUP/) {
                 if ($infoA =~/PRECISE/ &&  $infoB =~/IMPRECISE/) {
-                    print "$tmp[0]\t$tmp[1]\t$tmp[2]\t$tmp[3];$ciposB;$ciendB;$genesB[0];$ratiosB[0];$regionsB[0];$s2n_B[0];$zscore_B[0];$GC_B[0];$MAP_B[0]\n";
+                    print "$tmp[0]\t$tmp[1]\t$tmp[2]\t$tmp[3];$ciposB;$ciendB;$genesB[0];$ratiosB[0];$regionsB[0];$s2n_B[0];$s2nc_B[0];$zscore_B[0];$GC_B[0];$MAP_B[0]\n";
                 }
                 if ($infoB =~/PRECISE/ &&  $infoA =~/IMPRECISE/) {
-                    print "$tmp[4]\t$tmp[5]\t$tmp[6]\t$tmp[7];$ciposA;$ciendA;$genesA[0];$ratiosA[0];$regionsA[0];$s2n_A[0];$zscore_A[0];$GC_A[0];$MAP_A[0]\n";
+                    print "$tmp[4]\t$tmp[5]\t$tmp[6]\t$tmp[7];$ciposA;$ciendA;$genesA[0];$ratiosA[0];$regionsA[0];$s2n_A[0];$s2nc_A[0];$zscore_A[0];$GC_A[0];$MAP_A[0]\n";
                 }
             }
             # Complex variant
             if ($infoA =~/=INV/ && ( $infoB =~/=DUP/ || $infoB =~/=DEL/ )) {
                 if ($infoA =~/PRECISE/ &&  $infoB =~/IMPRECISE/) {
-                    print "$tmp[0]\t$tmp[1]\t$tmp[2]\tPRECISE;SVTYPE=CX;$ciposA;$ciendA;$breakReadsA[0];$assembledA[0];$AF_A[0];$PE_A[0];$ratiosB[0];$regionsB[0];$s2n_B[0];$zscore_B[0]\n";
+                    print "$tmp[0]\t$tmp[1]\t$tmp[2]\tPRECISE;SVTYPE=CX;$ciposA;$ciendA;$breakReadsA[0];$assembledA[0];$AF_A[0];$PE_A[0];$ratiosB[0];$regionsB[0];$s2n_B[0];$s2nc_B[0];$zscore_B[0]\n";
                 }
             }
             if ($infoB =~/=INV/ && ( $infoA =~/=DUP/ || $infoA =~/=DEL/) ) {
                 if ($infoB =~/PRECISE/ &&  $infoA =~/IMPRECISE/) {
-                    print "$tmp[4]\t$tmp[5]\t$tmp[6]\tPRECISE;SVTYPE=CX;$ciposB;$ciendB;$breakReadsB[0];$assembledB[0];$AF_B[0];$PE_B[0];$ratiosA[0];$regionsA[0];$s2n_A[0];$zscore_A[0]\n";
+                    print "$tmp[4]\t$tmp[5]\t$tmp[6]\tPRECISE;SVTYPE=CX;$ciposB;$ciendB;$breakReadsB[0];$assembledB[0];$AF_B[0];$PE_B[0];$ratiosA[0];$regionsA[0];$s2n_A[0];$s2nc_A[0];$zscore_A[0]\n";
                 }
             }
         } 

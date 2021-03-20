@@ -51,6 +51,9 @@ use Statistics::Descriptive;
 
  open (LOG, ">", $::HoF{REFERENCES}) || die " ERROR: Cannot open $::HoF{REFERENCES}\n";
  print LOG "N\tSAMPLE\tREFERENCE_SET\tMEAN_CORRELATION\n";
+ 
+ open (RLOG, ">", $::HoF{R_REFERENCE})|| die " ERROR: Cannot open $::HoF{R_REFERENCE}\n";
+
  my @cluster = ();
  $count = 0;
  my $sum = 0;
@@ -94,10 +97,13 @@ use Statistics::Descriptive;
 
 	$::sampleHash{$sample1}{CORRELATION} = $mean_corr;
 
+    print RLOG "$sample1\t" . join ("\t", @cluster). "\n";
 	print LOG "$count\t$sample1\t" . join ("\t", @cluster) . "\t" . $mean_corr . "\n";
 	@cluster = ();
 	$sum = 0;
  }
+ close LOG;
+ close RLOG;
 }
 
 ######################## 

@@ -51,7 +51,7 @@ my $plotKaryotype = "";
 my $cases = "";
 my $controls = "";
 my $filterDiscordantOnly = "";
-
+my $refDir = "";
 
 my $plotLargeCNV = "";
 my $plotSingleExonCNV = "";
@@ -93,7 +93,7 @@ our $normalizedDir;
 our $plotClusters = "";
 
 my $cmd;
-our $versionNumber = "0.9.4";
+our $versionNumber = "0.9.5";
 my $startTime = time;
 
 our $targetDepth = "$dirname/bin/TargetDepth/targetDepth.pl";
@@ -178,7 +178,6 @@ if ($Config{osname} =~/darwin/) {
 else {
  $grep  = `which grep`; chomp $grep;
  $sort = `which sort`; chomp $sort;
-
 }
 
 if (!$grep) {
@@ -219,13 +218,6 @@ if (!$samtools) {
 	print " ERROR: samtools was not found on PATH\n"; exit;
 }
 
-our $macs2 = `which macs2`;
-chomp $macs2;
-
-if (!$macs2) {
-	print " ERROR: macs2 was not found on PATH\n"; exit;
-}
-
 
 # Capturing warnings instead of just printing them: https://perlmaven.com/how-to-capture-and-save-warnings-in-perl
 local $SIG{__WARN__} = sub { 
@@ -259,19 +251,21 @@ our $annoName;
 
 # Displaying usage panel
 Help () if (@ARGV < 1 or !GetOptions(
-	'pooled=s'=>\$input,
-	'o=s'=>\$outDir,
-	'g=s'=>\$genome,
-	'b=s'=>\$bed,
-	't=i'=>\$threads,
+	'outdir|o=s'=>\$outDir,
+	'genome|g=s'=>\$genome,
+	'bed|b=s'=>\$bed,
+	'threads|t=i'=>\$threads,
+	'refdir=s'=>\$refDir,
 
     # Params for WGS
 	'bam=s'=>\$bam,
-	'e=s' =>\$excludeRegions,
-	'c=i' =>\$numCluster,
-	's=i' =>\$sdCluster,
-	'r=i'=>\$breakReads,
-	'm=i' =>\$minSizeSV,
+	'exclude|e=s' =>\$excludeRegions,
+	'numclus|c=i' =>\$numCluster,
+	'sdclust|s=i' =>\$sdCluster,
+	'breakreads|r=i'=>\$breakReads,
+	'minsvsize|m=i' =>\$minSizeSV,
+	'maxsvsize|x=i' =>\$maxSizeSV,
+
 	'chr=s'=>\$chromo,
 	'd'=>\$debug,
 
@@ -279,62 +273,61 @@ Help () if (@ARGV < 1 or !GetOptions(
 	'l=f'=>\$minOlap,
 	'in=s' =>\$inputVCF,
 
-	# Params for WES
-	# For test-control paired analysis
-	'cases=s'   =>\$cases,
-	'controls=s'=>\$controls,
-
-	'v' =>\$version,
+	'version|v' =>\$version,
 	'all' =>\$doAll,
 	'cnv' =>\$doCNV,
 	'merge' =>\$doMerge,
 	'gfeatures' =>\$doGenomeFeat,
 	'filter' =>\$doFilter,
 	'vcf' =>\$doVCF,
-	'reportHTML' =>\$doHTML,
+	'reporthtml' =>\$doHTML,
 	'breakpoint' =>\$doBreakpoint,
 	'extract' =>\$doExtraction,
 	'offtarget' =>\$doOfftarget,	
-	'build-ref' =>\$buildReference,
-	'useControlDir' =>\$useControlDir,
+	'buildref' =>\$buildReference,
+	'usecontroldir' =>\$useControlDir,
 	'normalize=s' =>\$doNormalization,
 	'vaf' => \$doVAF,
 	'freebayes'=>\$doFreebayes,
 	'samtools'=>\$doSamtools,
-	'callCNV' =>\$doCalling,
-	'plotBiases'=>\$plotBiases,
-	'plotScatter'=>\$plotScatter,
-	'plotKaryotype'=>\$plotKaryotype,
-	'plotLargeCNV' =>\$plotLargeCNV,
-	'plotSingleExon' =>\$plotSingleExonCNV,
+	'callcnv' =>\$doCalling,
+	'plotbiases'=>\$plotBiases,
+	'plotscatter'=>\$plotScatter,
+	'plotkaryotype'=>\$plotKaryotype,
+	'plotlargecnv' =>\$plotLargeCNV,
+	'plotsingleexon' =>\$plotSingleExonCNV,
 	'annotate' =>\$doAnnotate,
 
-	'no-breakpoint' =>\$noBreakpoint,
-	'no-offtarget' =>\$noOfftarget,
-	'no-vaf' =>\$noVaf,   #####
-	'no-callCNV' =>\$noCallCNV, #####
-	'no-scatter' =>\$noPlotScatter, #####
-	'no-plotCNV' =>\$noPlotCNV, #####
-	'no-annotate' =>\$noAnnotate, #####
-	'no-filter'=>\$noFilter, #####
-	'no-reportHTML' =>\$noReportHTML, #####
+	# Params for WES
+	# For test-control paired analysis
+	'pooled=s'=>\$input,
+	'cases=s'   =>\$cases,
+	'controls=s'=>\$controls,
 
-	'minCorrelation=f'=>\$minCorrelation,
-	'minSampleSizeCluster=i'=>\$minSampleSizeCluster,
-	'maxSampleSizeCluster=i'=>\$maxSampleSizeCluster,
-	'minOffreads=i'=>\$minOfftargetReads, # Default minimum number of offtarget reads needed to trigger analysis
-	'minOffsd=i'=>\$minOfftargetSD,
-	'lowerDelCutoff=f'=>\$lowerDelCutoff,
-	'upperDelCutoff=f'=>\$upperDelCutoff,
-	'lowerDupCutoff=f'=>\$lowerDupCutoff,
-	'minDiscordants=i'=>\$numCluster,
-	'minDiscordantSD=i'=>\$sdCluster,
-	'filterDiscordantOnly'=>\$filterDiscordantOnly,
-	'no-filter-discordant-only'=>\$noFilterDiscordantOnly,
+	'nobreakpoint' =>\$noBreakpoint,
+	'noofftarget' =>\$noOfftarget,
+	'novaf' =>\$noVaf,   #####
+	'nocallcnv' =>\$noCallCNV, #####
+	'noscatter' =>\$noPlotScatter, #####
+	'noplotcnv' =>\$noPlotCNV, #####
+	'noannotate' =>\$noAnnotate, #####
+	'nofilter'=>\$noFilter, #####
+	'noreporthtml' =>\$noReportHTML, #####
 
-	'minSizeSV=i' =>\$minSizeSV,
-	'maxSizeSV=i' =>\$maxSizeSV,
-	'minZscore=f'=>\$minZscore,
+	'mincorr=f'=>\$minCorrelation,
+	'minrefsize=i'=>\$minSampleSizeCluster,
+	'maxrefsize=i'=>\$maxSampleSizeCluster,
+	'minofftargetreads=i'=>\$minOfftargetReads, # Default minimum number of offtarget reads needed to trigger analysis
+	'minofftargetsd=i'=>\$minOfftargetSD,
+	'lowerdelcutoff=f'=>\$lowerDelCutoff,
+	'upperdelcutoff=f'=>\$upperDelCutoff,
+	'lowerdupcutoff=f'=>\$lowerDupCutoff,
+	'mindiscordants=i'=>\$numCluster,
+	'mindiscordantssd=i'=>\$sdCluster,
+	'filterdiscordantonly'=>\$filterDiscordantOnly,
+	'nofilterdiscordantonly'=>\$noFilterDiscordantOnly,
+
+	'minzscore=f'=>\$minZscore,
 	'verbose' =>\$verbose,
 
 	# Params for REF
@@ -343,7 +336,6 @@ Help () if (@ARGV < 1 or !GetOptions(
 	
     'n=s' =>\$normalizedDir,
     'plotClusters' =>\$plotClusters
-
 	)
 );
 
@@ -362,16 +354,13 @@ elsif ($analysisType eq 'wes') {
 elsif ($analysisType eq 'annotate') {
 	$annotate = 1;
 }
-elsif ($analysisType eq 'reference') {
-	$createReference = 1;
-}
 else {
 	promptErr();
 	print " Unknown positional param '$ARGV[0]'. Please, choose between wes, wgs or annotate\n";
 	Help(); exit;
 }
 
- if (!$analyzeWGS && !$analyzeWES && !$annotate && !$createReference) {
+ if (!$analyzeWGS && !$analyzeWES && !$annotate) {
 	Help(); exit;
  }
  my $inputOption = "";
@@ -389,68 +378,6 @@ else {
 
 	$cmd = "$AnnoExe -in $inputVCF -o $outDir -l $minOlap";
 	system ($cmd);
- }
- elsif ($createReference) {
-
-	print BOLD GREEN "\n   Mode: Coverage reference generation\n\n";
-	print RESET;
-
-	 if (!$input && !$bed && !$genome && !$outDir) {
-		 HelpReference(); exit;
-	 }
-
-	 if (!$input) {
-		promptErr();
-		print " BED targeted regions file (-b)\n";
-		HelpReference(); exit;
-	 }
-	 if (!$bed) {
-		promptErr();
-		print " BED targeted regions file (-b)\n";
-		HelpReference(); exit;
-	 }
-	 if (!$outDir) {
-		promptErr();
-		print " missing output directory (-o)\n";
-		HelpReference(); exit;
-	 }
-	 if (!$genome) {
-		promptErr();
-		print " missing genome reference file (-g)\n\n"; exit;
-		#Help2(); exit;
-	 }
-	 if (!-e $genome) {
-		promptErr();
-		print " non-existent $genome genome reference file\n";
-		#Help2(); exit;
-	}
-	my $opt = "";
-	if ($input) {
-		$opt.= " -i $input";
-	}
-	if ($genome) {
-		$opt.= " -g $genome";
-	}
-	if ($bed) {
-		$opt.= " -b $bed";
-	}	
-	if ($outDir) {
-		$opt.= " -o $outDir";
-	}
-	if ($normalizedDir) {
-		$opt.= " -n $normalizedDir";
-	}
-	if ($plotClusters) {
-		$opt.= " -plotClusters";
-	}
-	if ($threads) {
-		$opt.= " -t $threads";
-	}	
-	$opt .= " -extract -merge";		
-	$cmd = "$REFexe $opt";
-	system ($cmd);
-	print "$cmd\n";
-
  }
  elsif ($analyzeWGS) {
      
@@ -501,7 +428,7 @@ else {
 	}
 	my $opt = "";
 	if ($bam) {
-		$opt.= " -bam $bam";
+		$opt.= " --bam $bam";
 	}
 	if ($genome) {
 		$opt.= " -g $genome";
@@ -531,39 +458,36 @@ else {
 		$opt.= " -e $excludeRegions";
 	}
 	if ($doAll) {
-		$opt.= " -all";
+		$opt.= " --all";
 	}
 	if ($doBreakpoint) {
-		$opt.= " -breakpoint";
+		$opt.= " --breakpoint";
 	}
 	if ($doCNV) {
-		$opt.= " -cnv";
+		$opt.= " --cnv";
 	}
 	if ($doMerge) {
-		$opt.= " -merge";
+		$opt.= " --merge";
 	}
 	if ($debug) {
 		$opt.= " -d";
 	}
 	if ($doGenomeFeat) {
-		$opt.= " -gfeatures";
+		$opt.= " --gfeatures";
 	}
 	if ($doFilter) {
-		$opt.= " -filter";
+		$opt.= " --filter";
 	}
 	if ($doVCF) {
-		$opt.= " -vcf";
+		$opt.= " --vcf";
 	}
 	if ($doHTML) {
-		$opt.= " -reportHTML";
+		$opt.= " --reporthtml";
 	}
 	$cmd = "$WGSexe $opt";
 	system ($cmd);
  }
  elsif ($analyzeWES) {
-
-	#print BOLD GREEN "\n Mode: Targeted sequencing analysis\n\n";
-	#print RESET;
 
 	 if ($input && !$controls && !$cases) {
 		$inputOption = "-pooled $input";
@@ -595,7 +519,7 @@ else {
 		print " choose either -pooled [SAMPLE_DIR] or -cases [TEST_DIR] -controls [CONTROL_DIR]\n";
 		Help2(); exit;
 	 }
-	 if (!$bed) {
+	 if (!$bed || !-e $bed ) {
 		promptErr();
 		print " BED targeted regions file (-b)\n";
 		Help2(); exit;
@@ -605,46 +529,44 @@ else {
 		print " missing output directory (-o)\n";
 		Help2(); exit;
 	 }
-	 if (!$genome) {
+	 if (!$genome || !-e $genome ) {
 		promptErr();
 		print " missing genome reference file (-g)\n\n"; exit;
 		Help2(); exit;
 	 }
-	 if (!-e $genome) {
-		promptErr();
-		print " non-existent $genome genome reference file (-g)\n";
-		Help2(); exit;
-	}
 	my $opt = "";
 	if ($doAll) {
-		$opt.= " -all";
+		$opt.= " --all";
 	}
+	if ($refDir){
+		$opt.=" --refdir $refDir";
+	} 
 	if ($doBreakpoint) {
-		$opt.= " -breakpoint";
+		$opt.= " --breakpoint";
 	}
 	if ($breakReads) {
-		$opt.= " -minBreakReads $breakReads";
+		$opt.= " --breakreads $breakReads";
 	}
 	if ($sdCluster) {
-		$opt.= " -minDiscordantSD $sdCluster";
+		$opt.= " --mindiscordantssd $sdCluster";
 	}
 	if ($numCluster) {
-		$opt.= " -minDiscordants $numCluster";
+		$opt.= " --mindiscordants $numCluster";
 	}
 	if ($maxSizeSV) {
-		$opt.= " -maxSizeSV $maxSizeSV";
+		$opt.= " --maxsvsize $maxSizeSV";
 	}
 	if ($doOfftarget) {
-		$opt.= " -offtarget";
+		$opt.= " --offtarget";
 	}
 	if ($doExtraction) {
-		$opt.= " -extract";
+		$opt.= " --extract";
 	}
 	if ($buildReference) {
-		$opt.= " -build-ref";
+		$opt.= " --buildref";
 	}
 	if ($useControlDir) {
-		$opt.= " -useControlDir";
+		$opt.= " --usecontroldir";
 	}
 	if ($doNormalization) {
 		if ($doNormalization eq "") {
@@ -654,108 +576,107 @@ else {
 			print " ERROR: Accepted -normalize values are: median, PCA\n\n";
 			exit;
 		}
-		$opt.= " -normalize $doNormalization";
+		$opt.= " --normalize $doNormalization";
 	}
 	if ($doCalling) {
-		$opt.= " -callCNV";
+		$opt.= " --callcnv";
 	}
 	if ($doFilter) {
-		$opt.= " -filterVCF";
+		$opt.= " --filtervcf";
 	}
 	if ($doAnnotate) {
-		$opt.= " -annotate";
+		$opt.= " --annotate";
 	}
 	if ($plotScatter) {
-		$opt.= " -plotScatter";
+		$opt.= " --plotscatter";
 	}
 	if ($plotLargeCNV) {
-		$opt.= " -plotLargeCNV";
+		$opt.= " --plotlargecnv";
 	}
 	if ($plotSingleExonCNV) {
-		$opt.= " -plotSingleExon";
+		$opt.= " --plotsingleexon";
 	}
 	if ($plotKaryotype) {
-		$opt.= " -plotKaryotype";
+		$opt.= " --plotkaryotype";
     }
 	if ($plotBiases) {
-		$opt.= " -plotBiases";
+		$opt.= " --plotbiases";
 	}
 	if ($minCorrelation) {
-		$opt.= " -minCorrelation $minCorrelation";
+		$opt.= " --mincorr $minCorrelation";
 	}
 	if ($minZscore) {
-		$opt.= " -minZscore $minZscore";
+		$opt.= " --minzscore $minZscore";
 	}
 	if ($minSampleSizeCluster) {
-		$opt.= " -minSampleSizeCluster $minSampleSizeCluster";
+		$opt.= " --minrefsize $minSampleSizeCluster";
 	}
 	if ($maxSampleSizeCluster) {
-		$opt.= " -maxSampleSizeCluster $maxSampleSizeCluster";
+		$opt.= " --maxrefsize $maxSampleSizeCluster";
 	}
 	if ($filterDiscordantOnly) {
-		$opt.= " -filterDiscordantOnly";
+		$opt.= " --filterdiscordantonly";
 	}
 	if ($PCAvariance) {
-		$opt.= " -PCAvariance $PCAvariance";
+		$opt.= " --minpcavariance $PCAvariance";
 	}
 	if ($lowerDelCutoff) {
-		$opt.= " -lowerDelCutoff $lowerDelCutoff";
+		$opt.= " --lowerdelcutoff $lowerDelCutoff";
 	}
 	if ($upperDelCutoff) {
-		$opt.= " -upperDelCutoff $upperDelCutoff";
+		$opt.= " --upperdelcutoff $upperDelCutoff";
 	}
 	if ($lowerDupCutoff) {
-		$opt.= " -lowerDupCutoff $lowerDupCutoff";
+		$opt.= " --lowerdupcutoff $lowerDupCutoff";
 	}
 	if ($minSizeSV) {
-		$opt.= " -minSizeSV $minSizeSV";
+		$opt.= " --minsvsize $minSizeSV";
 	}
 	if ($doFreebayes) {
-		$opt.= " -freebayes";
+		$opt.= " --freebayes";
 	}
 	if ($doSamtools) {
-		$opt.= " -samtools";
+		$opt.= " --samtools";
 	}
 	if ($doVAF) {
-		$opt.= " -vaf";
+		$opt.= " --vaf";
 	}
 	if ($doHTML) {
-		$opt.= " -reportHTML";
+		$opt.= " --reporthtml";
 	}
 	if ($verbose) {
-		$opt.= " -verbose";
+		$opt.= " --verbose";
 	}
 	if ($noBreakpoint) {
-		$opt.= " --no-breakpoint";
+		$opt.= " --nobreakpoint";
 	}
 	if ($noOfftarget) {
-		$opt.= " --no-offtarget";
+		$opt.= " --noofftarget";
 	}
 	if ($noVaf) {
-		$opt.= " --no-vaf";
+		$opt.= " --novaf";
 	}
 	if ($noCallCNV) {
-		$opt.= " --no-callCNV";
+		$opt.= " --nocallcnv";
 	}
 	if ($noPlotScatter) {
-		$opt.= " --no-scatter";
+		$opt.= " --noscatter";
 	}
 	if ($noPlotCNV) {
 		$opt.= " --no-plotCNV";
 	}
 	if ($noAnnotate) {
-		$opt.= " --no-annotate";
+		$opt.= " --noannotate";
 	}
 	if ($noFilter) {
-		$opt.= " --no-filter";
+		$opt.= " --nofilter";
 	}
 	if ($noReportHTML) {
-		$opt.= " --no-reportHTML";
+		$opt.= " --noreporthtml";
 	}
 	if ($noFilterDiscordantOnly) {
-		$opt.= " --no-filter-discordant-only";
+		$opt.= " --nofilterdiscordantonly";
 	}
-
 
 	$cmd = "$WESexe $opt  $inputOption -g $genome -o $outDir -b $bed -t $threads";
     print " INFO: $cmd\n"; 
@@ -874,13 +795,12 @@ sub displayHeader {
 sub Help {
 	print "\n  Description: Structural Variant (SV) discovery for Illumina short-read sequencing data
   Version $versionNumber
-  Usage:  ./GRAPES <mode> 
+  Usage:  $0 <mode> 
 
   mode:
      wgs	  Analyze Whole-Genome Sequencing (Experimental)
      wes	  Analyze Whole-Exome Sequencing/Targeted Sequencing
      annotate     Annotate BED file using gnomAD SV dataset
-     reference    Create reference coverage profiles from multiple targeted-seq datasets
 \n"; exit;
 }
 
@@ -889,63 +809,63 @@ sub Help2 {
 
 	print "\n   ./GRAPES wes [required_params] [Options] [Other_params]\n\n";
     print BOLD GREEN "   USAGE" , RESET, "\n";
-	print"   Pooled:       ./GRAPES wes -pooled <BAM_DIR> -o <OUT_DIR> -b <ROI_BED> -g <GENOME_FA> --all
-   Case-control: ./GRAPES wes -cases <TEST_BAM_DIR> -control <CONTROL_BAM_DIR> -o <OUT_DIR> -b <ROI_BED> -g <GENOME_FA> --all\n\n";
+	print"   Pooled:       ./GRAPES wes -pooled <BAM_DIR> --outdir <OUT_DIR> --bed <ROI_BED> --genome <GENOME_FA> --all
+   Case-control: ./GRAPES wes --cases <TEST_BAM_DIR> --control <CONTROL_BAM_DIR> --outdir <OUT_DIR> --bed <ROI_BED> --genome <GENOME_FA> --all\n\n";
 
     print BOLD GREEN "   REQUIRED" , RESET, "\n";
 
-	print "   -o	STRING	  Output directory
-   -g	STRING    Genome reference in FASTA format
-   -b	STRING	  BED ROIs 
-   -t	INT	  Number of CPUs (default = 1)\n\n";
+	print "   -o,--outdir	STRING	  Output directory
+   -g,--genome	STRING    Genome reference in FASTA format
+   -b,--bed	STRING	  BED ROIs 
+   -t,--threads	INT	  Number of CPUs (default = 1)\n\n";
 
     print BOLD GREEN "   OPTIONS" , RESET, "\n";
-	print "   --all	      Perform all steps below (including plots)
-   --breakpoint       Perform Breakpoint analysis
-     --no-breakpoint  Turn off breakpoint analysis
-   --extract          Extract Depth, GC and Mappability
-   --offtarget	      Perform Off-target analysis
-     --no-offtarget   Turn off offtarget analysis
-   --build-ref        Build a reference from a pool of samples
-   --callCNV          Perform Copy Ratio and segmentation
-     --no-callCNV     Turn off calling CNVs
-   --normalize        Normalize read depth 
-   	 options: median (default), PCA\n
-   --plotSingleExon   Plot single exon CNVs
-    --no-plotCNV      Turn off CNV plotting
-   --plotLargeCNV     Plot segmented CNVs
-    --no-plotCNV      Turn off CNV plotting
-   --plotScatter      Plot genome-wide CNV scatter plot
-   --vaf              Include Variant-Allele Frequency (VAF) analysis
-     --no-vaf         Turn off VAF analysis
-   --samtools	      Default if --vaf set. Perform variant call with samtools
-   --freebayes	      if --vaf set, perform variant call with freebayes
-   --annotate	      Annotate VCF file with gnomAD v2
-     --no-annotate    Turn off VCF annotation
-   --filterVCF	      Filter low qual VCF entries
-     --no-filterVCF   Turn off VCF filtering
-   --reportHTML	      Write results to an HTML file (Only for gene panels)
-     --no-reportHTML  TUrn off report HTML creation
-   --filterDiscordantOnly	Filter discordant-only SV predictions (default = true)
-	 --no-filter-discordant-only Turn off discordant-only filtering
-   --verbose          Print sub-command messages\n\n";
+	print "   --all	              Perform all steps below
+   --refdir                   Input directory where DB references will be stored.	
+   --breakpoint	              Perform Breakpoint analysis
+     --nobreakpoint	      Turn off breakpoint analysis
+   --extract	              Extract Depth, GC and Mappability
+   --offtarget	              Perform Off-target analysis
+     --noofftarget	      Turn off offtarget analysis
+   --buildref	              Build a reference from a pool of samples
+   --callcnv	              Perform ratio and CBS segmentation
+     --nocallcnv	      Turn off CNV calling
+   --normalize	              Normalize read depth. Choose from 'median', 'PCA'. (default='median')
+   --plotsingleexon	      Plot single exon CNVs
+     --noplotcnv	      Turn off CNV plotting
+   --plotlargecnv	      Plot segmented CNVs
+     --noplotcnv	      Turn off CNV plotting
+   --plotscatter	      Plot genome-wide CNV scatter plot
+   --vaf	              Include Variant-Allele Frequency (VAF) analysis
+     --novaf	              Turn off VAF analysis
+   --samtools	              Default if --vaf set. Perform variant call with samtools
+   --freebayes	              if --vaf set, perform variant call with freebayes
+   --annotate	              Annotate VCF file with gnomAD v2
+     --noannotate	      Turn off VCF annotation
+   --filtervcf	              Filter low qual VCF entries
+     --nofiltervcf	      Turn off VCF filtering
+   --reporthtml	              Write results to an HTML file (Only for gene panels)
+     --noreporthtml	      Turn off report HTML creation
+   --filterdiscordantonly     Filter discordant-only SV predictions (default = true)
+     --nofilterdiscordantonly Turn off discordant-pair only filtering
+   --verbose	              Print sub-command messages\n\n";
 
     print BOLD GREEN "   PARAMS" , RESET, "\n";
-	print "   --minCorrelation          FLOAT	Minimum pairwise-correlation to build a reference set (default = 0.91)
-   --minSampleSizeCluster    INT	Default minimum number of samples to build a single baseline (default = 2)
-   --maxSampleSizeCluster    INT   	Default maximum number of samples to build a single baseline (default = 15)
-   --minZscore               FLOAT      Minimum Z-score required to output a CNV prediction (default = 2.58)
-   --PCAvariance	     FLOAT   	Variance to remove when normalizing by PCA (default = 0.7)
-   --lowerDelCutoff          FLOAT	Lower-bound deletion cutoff ratio (default = 0.35)
-   --upperDelCutoff          FLOAT	Upper-bound deletion cutoff ratio (default = 0.71)
-   --lowerDupCutoff          FLOAT	Lower-bound duplication cutoff ratio (default = 1.24)
-   --minOffreads	     INT	Default minimum number of offtarget reads required to trigger off-target analysis
-   --minOffsd	             FLOAT	Default minimum number of std.dev from off-target rartios trigger off-target analysis	
-   --minSizeSV               INT        Minimum SV size to report a breakpoint call (default = 15)
-   --maxSizeSV               INT        Maximum SV size to report a breakpoint call (default = 5000000)
-   --minDiscordants          INT	Minimum number of discordant read pairs (default = 5)
-   --minDiscordantSD         INT        Minimum std.deviations from the mean insert size to consider discordant pairs (default = 10)
-   --minBreakReads           INT	Minimum number of break reads (default = 5)\n\n";
+	print "   --mincorr            FLOAT     Minimum sample correlation to build a reference set (default = 0.91)
+   --minrefsize         INT       Minimum number of samples to build a single baseline (default = 2)
+   --maxrefsize         INT       Maximum number of samples to build a single baseline (default = 15)
+   --minzscore          FLOAT     Minimum Z-score required to output a CNV prediction (default = 2.58)
+   --minpcavariance     FLOAT     Minimum variance to remove when normalizing by PCA (default = 0.7)
+   --lowerdelcutoff     FLOAT     Lower-bound deletion cutoff ratio (default = 0.35)
+   --upperdelcutoff     FLOAT     Upper-bound deletion cutoff ratio (default = 0.71)
+   --lowerdupcutoff     FLOAT     Lower-bound duplication cutoff ratio (default = 1.24)
+   --minofftargetreads  INT       Minimum number of offtarget reads required to trigger off-target analysis (default = 1e6)
+   --minofftargetsd     FLOAT     Minimum number of std.dev from off-target rartios trigger off-target analysis	(default = 0.2)
+   --minsvsize          INT       Minimum SV size (in bp) to report a breakpoint call (default = 15)
+   --maxsvsize          INT       Maximum SV size (in bp) to report a breakpoint call (default = 5e6)
+   --mindiscordants     INT       Minimum number of discordant read pairs (default = 5)
+   --mindiscordantssd   INT       Minimum insert size std.deviations to define discordant pairs (default = 10)
+   --breakreads         INT       Minimum number of break reads (default = 5)\n\n";
 
  exit;
 }
@@ -984,30 +904,6 @@ sub Help3 {
    -m   INT     Minimum SV size in bp [default = 50]
    -t   INT 	Number of CPUs (default 1)\n\n";
 
- exit;
-}
-
-
-########################
-
-sub HelpReference {
-	print "   Description: Creation of reference coverage profiles for targeted sequencing\n";
-	print "
-    Usage:  ./GRAPES wes <PARAMS> <OPTIONS>
-
-    Params:
-
-	-i		STRING	 Input BAM/s. Can be a file with a list of BAMs. [REQUIRED]
-    	-n     		STRING	 Input directory with previously normalized counts.
-	-o		STRING   Output directory. [REQUIRED]
-	-g		STRING	 Genome reference in FASTA format. [REQUIRED]
-	-b		STRING	 BED regions. [REQUIRED]
-	-t		INT	 Number of CPUs
-
-    commands:
-    -extract 
-    -merge
-    -plotClusters	Plot sample clusters\n\n";
  exit;
 }
 

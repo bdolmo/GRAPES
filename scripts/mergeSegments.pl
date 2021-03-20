@@ -50,6 +50,7 @@ my %segments = ();
 my %seen = ();
 my $ratio_A  = '.';
 my $s2n_A    = '.';
+my $SNRC_A   = '.';
 my $zscore_A = '.';
 my $MAD_A    = '.';
 my $GC_A     = '.';
@@ -57,6 +58,7 @@ my $MAP_A    = '.';
 
 my $ratio_B  = '.';
 my $s2n_B    = '.';
+my $SNRC_B   = '.';
 my $zscore_B = '.';
 my $MAD_B    = '.';
 my $GC_B     = '.';
@@ -67,12 +69,13 @@ foreach my $call_A (@arrInput) {
     my @tmp = split (/\t/, $call_A);
 
     my ($chr_A, $start_A, $end_A, $regions_A, $cipos_A, $ciend_A, $svtype_A,
-    $gene_A, $ratio_A, $SNR_A, $MAD_A, $zscore_A, $GC_A, $MAP_A) = parseCall($call_A);
+    $gene_A, $ratio_A, $SNR_A, $SNRC_A, $MAD_A, $zscore_A, $GC_A, $MAP_A) = parseCall($call_A);
 
     my $coord_A = "$chr_A\t$start_A\t$end_A";
 
     my @ratios = ();
     my @SNR    = ();
+    my @SNRC   = (); 
     my @zscores= ();
     my @genes  = ();
     my @MADS   = ();
@@ -87,6 +90,7 @@ foreach my $call_A (@arrInput) {
     push @ratios, $ratio_A;
     push @MADS, $MAD_A;
     push @SNR, $SNR_A;
+    push @SNRC, $SNRC_A;  
     push @zscores, $zscore_A;
     push @GC, $GC_A;
     push @MAP, $MAP_A;
@@ -98,7 +102,7 @@ foreach my $call_A (@arrInput) {
 
         next if $call_A eq $call_B;
         my ($chr_B, $start_B, $end_B, $regions_B, $cipos_A, $ciend_A, $svtype_B, 
-        $gene_B, $ratio_B, $SNR_B, $MAD_B, $zscore_B, $GC_B, $MAP_B) = parseCall($call_B);
+        $gene_B, $ratio_B, $SNR_B, $SNRC_B, $MAD_B, $zscore_B, $GC_B, $MAP_B) = parseCall($call_B);
         my $gap_size = $start_B - $end_A;
 
         my $coord_B = "$chr_B\t$start_B\t$end_B";
@@ -111,6 +115,7 @@ foreach my $call_A (@arrInput) {
             $regions+= $regions_B;
 
             push @SNR, $SNR_B;
+            push @SNRC, $SNRC_B; 
             push @genes, $gene_B;
             push @ratios, $ratio_B;
             push @MADS, $MAD_B; 
@@ -151,6 +156,14 @@ foreach my $call_A (@arrInput) {
     elsif (@SNR == 1) {
         $out_SNR = $SNR_A;
     }
+    my $out_SNRC = '.';
+    if (@SNRC > 1){
+        $out_SNRC = meanArray(@SNRC);
+    } 
+    elsif (@SNRC == 1) {
+        $out_SNRC = $SNRC_A;
+    } 
+
     my $out_zscores = '.';
     if (@zscores > 1) {
         $out_zscores = meanArray (@zscores);    
@@ -180,7 +193,7 @@ foreach my $call_A (@arrInput) {
     my $size = $outEnd-$start_A;
 	my $copyNumber = int ($out_ratios*2+0.5);
 
-    print "$chr_A\t$start_A\t$outEnd\tIMPRECISE;SVTYPE=$svtype_A;CIPOS=$cipos_A;CIEND=$ciend_A;SVLEN=$size;GC=$out_GC;MAP=$out_MAP;GENE=$gene_str;REGIONS=$regions;RRD=$out_ratios;MADRD=$out_MAD;CN=$copyNumber;SNR=$out_SNR;ZSCORE=$out_zscores\n";
+    print "$chr_A\t$start_A\t$outEnd\tIMPRECISE;SVTYPE=$svtype_A;CIPOS=$cipos_A;CIEND=$ciend_A;SVLEN=$size;GC=$out_GC;MAP=$out_MAP;GENE=$gene_str;REGIONS=$regions;RRD=$out_ratios;MADRD=$out_MAD;CN=$copyNumber;SNR=$out_SNR;SNRC=$out_SNRC;ZSCORE=$out_zscores\n";
 }
 
 #############################
@@ -223,6 +236,10 @@ sub parseCall {
     $SNR =~s/SNR=//;
     $SNR = '.' if !$SNR;
 
+    my ($SNRC) = grep ($_=~/SNRC=/, @tmpInfo);
+    $SNRC =~s/SNRC=//;
+    $SNRC = '.' if !$SNRC;
+
     my ($GC) = grep ($_=~/GC=/, @tmpInfo);
     $GC =~s/GC=//;
     $GC = '.' if !$GC;
@@ -235,7 +252,7 @@ sub parseCall {
     $zscore =~s/ZSCORE=//;
     $zscore = '.' if !$zscore;
 
-    return ($chr, $start, $end, $regions, $cipos, $ciend, $svtype, $gene, $ratio, $SNR, $MAD, $zscore, $GC, $MAP);
+    return ($chr, $start, $end, $regions, $cipos, $ciend, $svtype, $gene, $ratio, $SNR, $SNRC, $MAD, $zscore, $GC, $MAP);
 
 }
 

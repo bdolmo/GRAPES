@@ -8,8 +8,9 @@ use Sort::Key::Natural qw(natsort);
 
 # Annotate on the VCF's FILTER field if the variant passes the quality criteria (PASS) or not (LowQual)
 # Todo: if lowqual, annotate why!
-my @arrFields = ( "END", "SVTYPE", "CIPOS", "CIEND", "SVLEN", "EV", "REGIONS", "GENE", "MAPQ", "KDIV", "GC", 
-"MAP", "BR", "ASBR", "PE", "PPE", "RRD", "MADRD", "CN", "SNR", "ZSCORE", "PRD", "NSNV", "BAF");
+my @arrFields = ( "END", "SVTYPE", "CIPOS", "CIEND", "SVLEN", "EV", "REGIONS",
+"GENE", "MAPQ", "KDIV", "GC", "MAP", "BR", "ASBR", "PE", "PPE", "RRD", 
+"MADRD", "CN", "SNR", "SNRC", "ZSCORE", "PRD", "NSNV", "BAF", "CONF_SCORE");
 
 #################################
 sub filter {
@@ -47,7 +48,7 @@ sub filter {
             # For deletions we only accept hemizygous variants
             if ($Baf ne "." ) {
                 if ( $Baf < 0.85  ) {
-                    $fields{FILTER} = "LowQual";
+                    $fields{FILTER} = "badBAF";
                 }
             }
         }
@@ -57,7 +58,7 @@ sub filter {
             if ($Baf ne "." ) {
                 
                 if ( $Baf > 0.4 && $Baf < 0.6  ) {
-                    $fields{FILTER} = "LowQual";
+                    $fields{FILTER} = "badBAF";
                 }
             }
         }
@@ -112,10 +113,13 @@ sub parse {
         CN     => "CN=" . fetchPattern("CN", \@tmp),
         MADRD  => "MADRD=" . fetchPattern("MADRD", \@tmp),
         SNR    => "SNR=" . fetchPattern("SNR", \@tmp),
+        SNRC   => "SNRC=" . fetchPattern("SNRC",\@tmp),
         ZSCORE => "ZSCORE=" . fetchPattern("ZSCORE", \@tmp),
         PRD    => "PRD=" . fetchPattern("PRD", \@tmp),
         NSNV   => "NSNV=" .fetchPattern("NSNV", \@tmp),
-        BAF    => "BAF=" . fetchPattern("BAF", \@tmp)
+        BAF    => "BAF=" . fetchPattern("BAF", \@tmp),
+        CONF_SCORE => "CONF_SCORE=". fetchPattern("CONF_SCORE",\@tmp)
+
     );
     return %hash;
 }

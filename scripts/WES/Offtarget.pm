@@ -6,6 +6,7 @@ use Getopt::Long;
 use File::Basename; 
 use List::Util qw(min max);
 use Parallel::ForkManager;
+use Sort::Key::Natural qw(natsort);
 
 ##########################
 
@@ -62,7 +63,6 @@ sub appendOfftargetMetrics2Summary {
 		rename $tmpSummary, "$::outDir/summary_metrics.log";
 	}
 }
-
 
 ##########################
 sub preProcess {
@@ -121,13 +121,14 @@ sub removePeaks {
 
 		# Identify off-target peaks using MACS2
 		print " INFO: Offtarget peak calling for $sample.offTarget.bam file\n";
-	 	$cmd = "$::macs2 callpeak -t $offtargetDir/$sample.offTarget.bam -n $offtargetDir/$sample.orfanPeaks > /dev/null 2>&1";
+	 	$cmd = "$::macs2 callpeak -t $offtargetDir/$sample.offTarget.bam -n $offtargetDir/$sample.orfanPeaks";
 	 	print "$cmd\n" if $::verbose;
 		system($cmd);
 
 		# Formatting narrowPeak files
 		if (-e "$offtargetDir/$sample.orfanPeaks_peaks.narrowPeak") {
-			$cmd = "$::cat $offtargetDir/$sample.orfanPeaks_peaks.narrowPeak | $::awk '{print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$4\";\"\$5}' > $offtargetDir/$sample.narrowPeak.format.bed";
+			$cmd = "$::cat $offtargetDir/$sample.orfanPeaks_peaks.narrowPeak ";
+			$cmd.= " | $::awk '{print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$4\";\"\$5}' > $offtargetDir/$sample.narrowPeak.format.bed";
 			system($cmd);
 		}
 		else {
@@ -220,11 +221,12 @@ sub createBins {
 		my $countsHuman = Utils::number2human($counts);
 		my $binSizeHuman= Utils::number2human($::sampleHash{$sample}{OFFTARGETBIN});
 
-		print " INFO: $sample off-target reads: $countsHuman\toff-target bin size: $binSizeHuman\n";
+		# $cmd = "$::bedtools bamtobed -i $bam | $::awk \'{ print \$1\"\t\"\$2 }\'> $offtargetDir/$sample.offtarget.coordinates.bed";
+		# system $cmd if !-e "$offtargetDir/$sample.offtarget.coordinates.bed";
 
-		my $sample_offtarget_bed = "$offtargetDir/$sample.offtarget.bed";
-		
-		createPseudowindows($outDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN}, $sample_offtarget_bed);
+		print " INFO: $sample off-target reads: $countsHuman\toff-target bin size: $binSizeHuman\n";
+		#estimateWindowSize($offtargetDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN}, $bam);
+		my $sample_offtarget_bed = createPseudowindows($offtargetDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN});
 	}
 	else {
 		$::sampleHash{$sample}{READSOFFTARGET} = 0;
@@ -247,6 +249,92 @@ sub createBins {
  unlink("$offtargetDir/ontarget_paded_400bp_centromers_patches.bed");
  #unlink("$outDir/offtarget_centromeres_patches_peaks_negative.bed");
 }
+#########################
+sub estimateWindowSize {
+
+	my $outDir  = shift;
+	my $sample  = shift; 
+	my $binSize = shift;
+	my $bam     = shift;
+
+	my $cmd = "$::bedtools bamtobed -i $bam | $::awk \'{ print \$1\"\t\"\$2\"\t\"\$3}\'| $::sort -V > $outDir/$sample.offtarget.coordinates.bed";
+	system $cmd if !-e "$outDir/$sample.offtarget.coordinates.bed";
+
+	my $off_bed = createPseudowindows($outDir, $sample, $binSize);
+	my $ini_std = caculateRatioStd($off_bed, "$outDir/$sample.offtarget.coordinates.bed");
+	#print "$sample\t$binSize\t$ini_std\n";
+
+	if ($ini_std > 0.2) {
+		my $maxBinSize = $binSize + (50000*5);
+		my $count = 0;
+		for(my $bin=$binSize; $maxBinSize; $bin+=50000) {
+			my $off_bed = createPseudowindows($outDir, $sample, $bin);
+			my $bin_std = caculateRatioStd($off_bed, "$outDir/$sample.offtarget.coordinates.bed");
+			$count++;
+			#print "$sample\t$bin\t$bin_std\n";
+			last if $count == 10;
+
+		} 
+	} 
+
+	# Now we should get counts and produce bin-level ratios 
+}
+
+#########################
+sub caculateRatioStd {
+
+	my $off_bed   = shift;
+	my $coord_bed = shift;
+
+	my %joinedWindows = ();
+	my %seen = ();
+	my $min = 10e20;
+	my $max = 0;
+	open (IN, "$::bedtools intersect -a $off_bed -b $coord_bed -c -sorted |");
+	while(my $line=<IN>) {
+		chomp $line;
+		my @tmp = split("\t", $line);
+		my @info = split (";", $tmp[3]);
+		my $window_name = $info[0];
+
+		if (!exists $seen{$window_name} ) {
+			$min = 10e20;
+			$max = 0;
+		}
+		$seen{$window_name}++;
+		$joinedWindows{$window_name}{CHR} = $tmp[0];
+		if ($tmp[1] < $min) {
+			$joinedWindows{$window_name}{START} = $tmp[1];
+			$min = $tmp[1];
+		}
+		if ($tmp[2] > $max) {
+			$joinedWindows{$window_name}{END} = $tmp[2];
+		}
+		my $length = $tmp[2]-$tmp[1];
+		$joinedWindows{$window_name}{COUNTS}+=$tmp[4];
+	} 
+	close IN;
+
+	#my $offCounts = "$outDir/$sample.offtarget.counts.bed";
+	my @arrCounts = (); 
+	#open (OUT, ">", $offCounts) || die " ERROR: unable to open $offCounts\n";
+	foreach my $region (natsort keys %joinedWindows) {
+		#print OUT "$joinedWindows{$region}{CHR}\t$joinedWindows{$region}{START}\t$joinedWindows{$region}{END}\t$region\t$joinedWindows{$region}{COUNTS}\n";
+		push @arrCounts,$joinedWindows{$region}{COUNTS};  
+	}
+	my $medianCounts = Utils::medianArray(@arrCounts);
+	#close OUT;
+	my @arrRatios = (); 
+	foreach my $region (natsort keys %joinedWindows) {
+		my $ratio = $joinedWindows{$region}{COUNTS}/$medianCounts;
+		push @arrRatios,$ratio;  
+	}
+	my $sdRatios = Utils::MAD(@arrRatios);
+	return $sdRatios;
+} 
+
+
+
 
 ##########################
 sub createPseudowindows {
@@ -256,14 +344,14 @@ sub createPseudowindows {
  my $outDir  = shift;
  my $sample  = shift; 
  my $binsize = shift;
- my $off_bed = shift;
 
+ my $off_bed = "$outDir/$sample.offtarget.bed";
  if (-e $off_bed) {
- 	return 1;
+ 	#return 1;
  } 
 
- my $inputpw  = "$outDir/OFF_TARGET/offtarget_centromeres_patches_peaks_negative.bed";
- my $outputpw = "$outDir/OFF_TARGET/$sample.offTarget.pseudowindowed.bed";
+ my $inputpw  = "$outDir/offtarget_centromeres_patches_peaks_negative.bed";
+ my $outputpw = "$outDir/$sample.offTarget.pseudowindowed.bed";
 
  open (INPW, "<", $inputpw) or die "cannot open $inputpw";
  open (OUTPW, ">", $outputpw) or die "cannot open $outputpw";
@@ -435,19 +523,19 @@ sub createPseudowindows {
  close INPW;
  close OUTPW;
 
- my $cmd = "$::awk '{if( \$3>\$2) print \$0}' $outDir/OFF_TARGET/$sample.offTarget.pseudowindowed.bed | ";
+ my $cmd = "$::awk '{if( \$3>\$2) print \$0}' $outDir/$sample.offTarget.pseudowindowed.bed | ";
  $cmd .= "$::awk '{if (\$1 !~/_/) { print \$0 }}' | $::awk '{if(\$3!=\$2) print \$0}' | ";
  $cmd .= "$::bedtools intersect -a stdin -b $::centromeres $::genomePatches -v | ";
- $cmd .= "$::sort -V >  $outDir/OFF_TARGET/$sample.offtarget_temp_with_centromeres.bed";
+ $cmd .= "$::sort -V >  $outDir/$sample.offtarget_temp_with_centromeres.bed";
  system($cmd); 
  
  $cmd = "$::awk '{if( \$4 ~ /centromere/) { print \$1\"\t\"\$2-1000000\"\t\"\$3+1000000\"\t\"\$4 }}' $::centromeres |"; 
- $cmd.="$::bedtools intersect -a $outDir/OFF_TARGET/$sample.offtarget_temp_with_centromeres.bed -b stdin -v | $::sort -V > $off_bed";
+ $cmd.="$::bedtools intersect -a $outDir/$sample.offtarget_temp_with_centromeres.bed -b stdin -v | $::sort -V > $off_bed";
  system $cmd;
 
- unlink("$outDir/OFF_TARGET/$sample.offTarget.pseudowindowed.bed");
- unlink("$outDir/OFF_TARGET/$sample.offtarget_temp_with_centromeres.bed");
-
+ unlink("$outDir/$sample.offTarget.pseudowindowed.bed");
+ unlink("$outDir/$sample.offtarget_temp_with_centromeres.bed");
+ return $off_bed;
 }
 
 1;

@@ -224,7 +224,7 @@ int main (int argc, char* argv[]) {
 void bed2Vector( std::string& bed, vector<bed_t>& RegionsVector, RefGenome& ref) {
 	ifstream bedFile;
   	bedFile.open (bed);
-        if (bedFile.is_open()) {
+    if (bedFile.is_open()) {
 		string line;
 		while ( std::getline (bedFile, line)) {
 			vector<string> tmp = split(line, '\t');

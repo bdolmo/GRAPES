@@ -318,10 +318,10 @@ double inline shannonEntropy ( std::string teststring ) {
 }
 //#########################################
 
-double inline computeDiscordantClusterSignificance ( int& cumulativeSizes, long& genomeSize, int& numInserts, int& nDiscordants  ) {
+double inline computeDiscordantClusterSignificance ( long int& cumulativeSizes, long& genomeSize, int& numInserts, int& nDiscordants  ) {
 	// Based on BreakDancer's confidence interval
 
-	int csni = cumulativeSizes*numInserts;
+	long int csni = cumulativeSizes*numInserts;
 
 	if (csni < 0) {
 		return 10e-20;
@@ -449,7 +449,7 @@ double inline computeDiscordantClusterSignificance ( int& cumulativeSizes, long&
 					//	cout << p << "\t" << p+readLength << "\t" << j << endl;
 					}
 				if (p <= j && p+readLength >= j) {	
-										depth++;
+					depth++;
 		
 					if (c == 0) {
 					//	cout << p << "\t" << depth << endl;

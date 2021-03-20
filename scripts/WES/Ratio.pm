@@ -23,7 +23,7 @@ use List::MoreUtils qw(uniq);
 
 		# Skipping ratio calculation when not applicable
 		next if exists $::referenceHash{$sample};
-		next if $::sampleHash{$sample}{PERFORM_OFFTARGET} eq "no";
+		next if $::sampleHash{$sample}{PERFORM_OFFTARGET} eq "NO";
 		next if !-e "$offtargetDir/$sample.normalized.bed.gz";
 
 		open RATIOS, ">", "$offtargetDir/$sample.ratios.txt";
@@ -69,10 +69,10 @@ use List::MoreUtils qw(uniq);
 		$::sampleHash{$sample}{OFFTARGET_SD_RATIO}  = sprintf "%.3f", Utils::std(@ratios);
 
 		if ($::sampleHash{$sample}{OFFTARGET_SD_RATIO} < $::minOfftargetSD) {
-			$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'yes'
+			$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'YES'
 		}
 		else {
-			$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'no';
+			$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'NO';
 		}
 
 		# compress file
@@ -97,9 +97,15 @@ use List::MoreUtils qw(uniq);
 		my $offtargetRatios  = "$offtargetDir/$sample.ratios.txt.gz";
 		my $OnOfftargetRatios= "$::outDir/$sample.ratios.txt.gz";
 
+
 		# Concatenating on/off ratios into a unified file, but just adding offtarget data that shows less than 0.2 standard deviation
 		if ( -e $ontargetRatios && -e $offtargetRatios ) {
-			my $cmd = "$::zcat $ontargetRatios $offtargetRatios | $::sort -V | $::gzip > $OnOfftargetRatios\n";
+			my @ratioData = ();
+			push @ratioData, $ontargetRatios;
+			if ($::sampleHash{$sample}{OFFTARGET_SD_RATIO} < 0.2) {
+				push @ratioData, $offtargetRatios;
+			} 
+			my $cmd = "$::zcat @ratioData | $::sort -V | $::gzip > $OnOfftargetRatios\n";
 			system $cmd;
 		}
 		elsif ( !-e $ontargetRatios && -e $offtargetRatios ){

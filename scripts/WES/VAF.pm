@@ -16,9 +16,134 @@ use Sort::Key::Natural qw(natsort);
 # For example, the theoretical BAF values of triploid regions (AAA, AAB, ABB or BBB) are 0, 0.33, 0.66 and 1 respectively."
 
 my $minFreebQual= 200;
+my $minSamtQual = 50;
 my $minVarDepth = 30; 
 my $varType     = "snp";
 
+
+#####################
+sub annotateSnvVAF {
+
+    my $bamFile = shift;
+    my $outDir  = shift;
+    my $sample  = shift;
+    my $bedFile = shift;
+
+    # Output is uncompressed VCF
+    print " INFO: Calling SNVs on sample $sample (samtools)\n";
+    my $cmd = "$::samtools mpileup -u -l $bedFile -f $::genome $bamFile $::devNullStderr ";
+    $cmd .= "| $::bcftools call -mv --ploidy 1 -Ov  > $outDir/BAF_DATA/$sample.snv.vcf";
+	print "$cmd\n" if $::verbose;
+    system $cmd if !-e "$outDir/BAF_DATA/$sample.snv.vcf";
+
+    open (IN, "<", "$outDir/BAF_DATA/$sample.snv.vcf") || die " ERROR: Unable to open $outDir/BAF_DATA/$sample.snv.vcf\n";
+    open (FVCF, ">", "$outDir/BAF_DATA/$sample.snv.filtered.vcf") || die " ERROR: Unable to open $outDir/BAF_DATA/$sample.snv.filtered.vcf\n";
+    open (BAF, ">", "$outDir/BAF_DATA/$sample.BAF.bed") || die " ERROR: Unable to open $outDir/BAF_DATA/$sample.BAF.bed\n";
+    while (my $line=<IN>) {
+        chomp $line;
+
+        # Print header
+        if ($line =~/^#/) {
+            print FVCF "$line\n";
+            next;
+        }
+
+        my @tmp = split (/\t/, $line);
+        my $Qual= $tmp[5];
+        my @info = split (/;/, $tmp[7]);
+        my ($DP) = grep ($_=~/^DP=/, @info);
+        $DP =~s/DP=//;
+        my $Var = '.';
+        if (length($tmp[3]) > 1 || length ($tmp[4]) > 1) {
+            $Var = "indel";
+            }
+        else {
+            $Var = "snp";
+        }
+
+        my $Freq;
+        if ($line=~/DP4=/) {
+            my ($DP4) = grep ($_=~/DP4=/, @info);
+            $DP4=~s/DP4=//;
+            #DP4=0,0,1,0
+            #ref-fwd, ref-rev, alt-fwd, alt-rev
+            my @tmpDP = split (/,/, $DP4);
+            my $ref = $tmpDP[0]+$tmpDP[1];
+            my $alt = $tmpDP[2]+$tmpDP[3];
+            $Freq = sprintf "%.3f",$alt/$DP; 
+        }
+        else {
+            my @details = split (/:/, $tmp[9]);
+            my $AD = $details[2];
+            my @tmpAD = split (/,/, $AD);
+            $Freq = sprintf "%.3f",$tmpAD[1]/$DP;
+        }
+        # Only selecting variants that pass the filters specified               
+        if ($Qual < $minSamtQual) {
+            next;
+        }
+        if ($DP < $minVarDepth) {
+            next;
+        }
+        if ($Var ne $varType) {
+            next;
+        }
+        print FVCF "$line\n";
+        my $End = $tmp[1]+1;
+
+        print BAF "$tmp[0]\t$tmp[1]\t$End\t$Freq\n";
+    }
+    close IN;
+    close BAF;
+    close FVCF;
+
+    # Now append BAF information to the CNV calls
+    my %callVAF = ();
+    open (IN, "$::bedtools intersect -a $bedFile -b $outDir/BAF_DATA/$sample.BAF.bed -wao |");
+    while (my $line=<IN>){
+        chomp $line;
+        my @tmp = split("\t", $line);
+        my $call= join("\t", @tmp[0..3]);
+
+
+        if (!exists $callVAF{$call}) {
+            $callVAF{$call} = []; 
+        } 
+
+        my $vaf = $tmp[-2];
+        if ($vaf ne ".") { 
+            push @{$callVAF{$call}}, $vaf;
+        } 
+     }  
+    close IN;
+
+    my $vafBed = $bedFile;
+    $vafBed =~s/.bed/.tmp.bed/; 
+
+    open (OUT, ">", $vafBed) || die " ERROR: Unable to open $vafBed"; 
+    foreach my $call (natsort keys %callVAF) {
+        my $NSNV    = scalar@{$callVAF{$call}};
+
+        my $meanVAF = '.';
+        if (@{$callVAF{$call}}) {
+            $meanVAF = Utils::meanArray(@{$callVAF{$call}});
+        } 
+
+        my $vafAnnotations = ";NSNV=$NSNV;BAF=$meanVAF";
+        if ($call !~/$vafAnnotations/){
+            print OUT "$call;NSNV=$NSNV;BAF=$meanVAF\n";
+
+        }
+        else {
+            print OUT "$call\n";
+        } 
+    } 
+    close OUT;
+    unlink $bedFile;
+    rename $vafBed, $bedFile;
+}
+
+#####################
 sub selectVariants {
 
     foreach my $sample ( natsort keys %::sampleHash ) {
@@ -97,8 +222,10 @@ sub selectVariants {
 
             my $segOnOffData= -e "$::outDir/SEGMENT_DATA/toplot.segmented.$sample.bed" 
             ? "$::outDir/SEGMENT_DATA/toplot.segmented.$sample.bed" : undef;
+
             my $segOnData   = -e "$::outDir/ON_TARGET/SEGMENT_DATA/toplot.segmented.$sample.bed" 
             ? "$::outDir/ON_TARGET/SEGMENT_DATA/toplot.segmented.$sample.bed" : undef;
+
             my $segOffData  = -e "$::outDir/OFF_TARGET/SEGMENT_DATA/toplot.segmented.$sample.bed" 
             ? "$::outDir/OFF_TARGET/SEGMENT_DATA/toplot.segmented.$sample.bed" : undef;
 
@@ -119,6 +246,7 @@ sub selectVariants {
 sub varCallFreebayes {
     my $bamFile = shift;
     my $sample  = shift;
+    #my $bed     = shift;
 
     # Output is uncompressed VCF
     print " INFO: Calling SNVs on sample $sample (freebayes)\n";

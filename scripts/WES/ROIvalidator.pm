@@ -14,6 +14,15 @@ use File::Basename;
 
 sub validate {
 
+    if (!$::bed) {
+        print " ERROR: missing BED regions file\n";
+        exit; 
+    } 
+    if (!-e $::bed) {
+        print " ERROR: $::bed BED regions file does not exist!\n";
+        exit; 
+    }
+
     # Check if ROI bed is sorted
     my $checkSorted = `$::sort -c -V $::bed`;
     chomp $checkSorted;

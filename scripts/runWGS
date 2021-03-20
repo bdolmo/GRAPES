@@ -130,13 +130,6 @@ if (!$samtools) {
 	exit;	
 }
 
-  our $macs2 = `which macs2`;
-  chomp $macs2;
-
-  if (!$macs2) {
-    print " ERROR: macs2 was not found on PATH\n"; exit;
-  }
-
 our $sed  = `which sed`;
 chomp $sed;
 if (!$sed) {
@@ -248,7 +241,7 @@ $outName =~s/.bam//;
 our $outVCF = "$outDir/$outName.vcf";
 
 # Check that all index files for bwa are available at genome (-g) path
-checkBwaIdx($genome);
+#checkBwaIdx($genome);
 
 $minSizeSV = 50 if !$minSizeSV;
 
@@ -285,7 +278,9 @@ if ($doBreakpoint) {
 	system $cmd;
 }
 $cmd = "$bgzip $outDir/$outName.counts_window.bed -f";
-system $cmd if !-e "$outDir/$outName.counts_window.bed.gz";
+if (-e "$outDir/$outName.counts_window.bed"){
+	system $cmd if !-e "$outDir/$outName.counts_window.bed.gz";
+} 
 
 if ($doCNV) {
 	print " INFO: Calling CNVs\n";
@@ -325,11 +320,11 @@ my $bedOutInfo  = "$outDir/$outName.annFeatures.bed";
 if ($doGenomeFeat) {
 	print " INFO: Annotating genomic features\n";
 	$cmd = "$AnnFeat $outDir/$outName.merged.bed $bam $genome $bedOutInfo $threads > $outDir/$outName.annFeatures.tmp.bed";
-	system $cmd;
+	#system $cmd;
 
 	$cmd = "$::sort -V $outDir/$outName.annFeatures.tmp.bed > $bedOutInfo";
-	system $cmd if !-e $bedOutInfo;
-	addAnnotFeatHheader($bedOutInfo);
+	#system $cmd if !-e $bedOutInfo;
+	#addAnnotFeatHheader($bedOutInfo);
 }
 if ($doFilter) {
 	print " INFO: Applying hard filters\n";
@@ -339,12 +334,12 @@ if ($doVCF) {
 	print " INFO: Generating VCF\n";
 	VCF::generate("$outDir/$outName.filtered.bed");
 }
+
 	$cmd = "$runAnnotate -in $outVCF -o $outDir -l $minOlap";
 	system ($cmd);
 	my $annotVCF = $outVCF;
 	$annotVCF=~s/.vcf/.annotated.vcf/;
 	$outVCF = $annotVCF;
-
 
 if ($doHTML) {
 	print " INFO: Generating HTML report\n";

@@ -5,6 +5,7 @@ use warnings;
 use File::Basename;
 use Parallel::ForkManager;
 use Cwd qw(cwd abs_path);
+use Sort::Key::Natural qw(natsort);
 use Getopt::Long;
 our $dirname = dirname (__FILE__);
 
@@ -128,7 +129,7 @@ Help () if (@ARGV<1 or !GetOptions(
  my @tmp = split ("," , $input);
  if (@tmp > 1 ) {
 	print " INFO: multiple input samples recognized\n";
-	foreach my $sample (@tmp) {
+	foreach my $sample ( natsort @tmp) {
 		print " INFO: sample $sample\n";
 		push @bams, $sample;
 	}
@@ -166,7 +167,7 @@ Help () if (@ARGV<1 or !GetOptions(
  my $index = 0;
  my $count = 0;
  my @batch;
- foreach my $bam (@bams) {
+ foreach my $bam (natsort @bams) {
 
 	$count++;
 	$index++;
@@ -265,7 +266,7 @@ Help () if (@ARGV<1 or !GetOptions(
  my $str;
  my $header;
  if ($report_counts) {
-	 foreach my $ct (@countFiles) {
+	 foreach my $ct ( natsort @countFiles) {
 		my $sample = basename($ct);
 		$sample=~s/_counts.bed//;
 		$sample=~s/.bam//;
@@ -300,7 +301,7 @@ Help () if (@ARGV<1 or !GetOptions(
 	 @tmps = ();
 	 @samp = ();
 	 $str = "";
-	 foreach my $cv (@coverageFiles) {
+	 foreach my $cv ( natsort @coverageFiles) {
 		my $sample = basename($cv);
 		$sample=~s/_coverage.bed//;
 		$sample=~s/.bam//;

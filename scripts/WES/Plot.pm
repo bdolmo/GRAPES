@@ -153,7 +153,7 @@ sub plotSingleExon2 {
    #print R "$libraries\n";
    print R "mydata<-read.table(file = \"$inputData\", sep =\"\t\", check.names = FALSE, header = FALSE)\n";
    print R "attach(mydata)\n";
-   print R "group.colors <- c(control = \"darkgrey\", '$sampleName' = \"#ffb2b2\")\n";
+   print R "group.colors <- c(control = \"darkgrey\", 'sampleName' = \"#ffb2b2\")\n";
    print R "samplename <- paste(\"$sampleName.$exonName\", \".png\", sep=\"\")\n";
    print R "filename <- paste(\"$outputDir/\", samplename, sep=\"\")\n";
    print R "png(filename, res =237, width = 1400, height=1400)\n";
@@ -179,9 +179,7 @@ sub plotSingleExon2 {
    unlink ("$outputDir/plotSingleExon.R");
  }
 
- 
-
-########################
+ ########################
  sub plotScatter {
 
 	my $outputDir   = shift;
@@ -222,7 +220,7 @@ sub plotSingleExon2 {
 			print R "$libraries\n";
 			print R "mydata<-read.table(file= \"$file\", sep =\"\t\",check.names = FALSE, header=FALSE)\n";
 			print R "attach(mydata)\n";
-			print R "chrsort <- mixedsort(levels(V1))\n";
+			print R "chrsort <- mixedsort(levels(factor(V1)))\n";
 			print R "mydata\$V1<-factor(mydata\$V1, levels=chrsort)\n";
 			print R "mydata<-mydata[order(mydata\$V1),]\n";
 			print R "xval<-seq(1,length(mydata\$V1))\n";
@@ -245,7 +243,8 @@ sub plotSingleExon2 {
 			print R "myplot\n";
 			print R "dev.off()\n";
 
-			`$::Rscript $outputDir/plotScatter.R $::devNull`; 
+			my $cmd="$::Rscript $outputDir/plotScatter.R $::devNull";
+			system $cmd;
 			unlink("$outputDir/plotScatter.R");
 		}
 	}

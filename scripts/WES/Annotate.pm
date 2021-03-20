@@ -10,7 +10,7 @@ use List::MoreUtils qw(uniq);
 # Purpose of this module is to annotate VCF files with gnomAD database
 
 #Hardcoded default fields 
-my @popDefaults = (
+our @popDefaults = (
     "EVIDENCE",
     "AF",
     "AN",
@@ -32,19 +32,21 @@ my @popDefaults = (
     "OTH_AF"
 );
 
-################
+################################
 sub doAnnotation {
     
     my $inputVCF = shift;
+    my $outDir   = shift;
+    my $minOlap  = shift;
 
     # Get a hash with vcf fields from gnomad
     my %headerVCF = returnVcfFields();
 
     # Annotate with gnomAD
-    annotateGnomad($inputVCF, \%headerVCF);
+    annotateGnomad($inputVCF, $outDir, $minOlap, \%headerVCF);
 }
 
-################
+################################
 sub getGenomicCode {
     my $chr    = shift;
     my $start  = shift;
@@ -52,15 +54,20 @@ sub getGenomicCode {
     my $svtype = shift;
 }
 
-################
+################################
 sub annotateGnomad {
 
     my $inputVCF = shift;
+    my $outDir   = shift;
+    my $minOlap  = shift;
     my $hashRef  = shift;
 
     my %headerVCF = %$hashRef;
 
-    ( my $annotVCF = $inputVCF ) =~ s/\.vcf/\.tmp.vcf/;
+    my $basenameInputVcf = basename($inputVCF);
+    my $annotVCF = "$outDir/$basenameInputVcf";
+    $annotVCF =~s/.vcf/.annotated.vcf/;
+
     open (VCF, ">", $annotVCF) || die " ERROR: Unable to open $annotVCF\n";
 
     if ( isGzipped($inputVCF) ) {
@@ -105,15 +112,14 @@ sub annotateGnomad {
         my $start = $tmp[1];
 
         my ($end) = grep ($_=~/^END=/, @info);        
-        $end=~s/END=//;
+        $end=~s/END=// if $end;
 
         my ($svtype) = grep ($_=~/^SVTYPE=/, @info);
-        ($svtype) =~s/SVTYPE=//;
+        ($svtype) =~s/SVTYPE=// if $svtype;
 
-        my $precision = $info[0];
+        my $precision = grep ($_=~/PRECISE/, @info);
 
-        my @gnomad 
-            = tabixQuery($chr, $start, $end, $svtype, $precision);
+        my @gnomad = tabixQuery($chr, $start, $end, $svtype, $precision, $minOlap);
 
         if (@gnomad) {
             foreach my $entry (@gnomad) {
@@ -146,12 +152,13 @@ sub annotateGnomad {
     close IN;
     close VCF;
 
-    # Now erase unnanotated VCF and rename tmp annotated
-    unlink($inputVCF);
+    unlink $inputVCF;  
     rename $annotVCF, $inputVCF;
+
+    return $annotVCF;
 }
 
-################
+################################
 sub tabixQuery {
 
     my $chrQuery   = shift;
@@ -159,6 +166,13 @@ sub tabixQuery {
     my $endQuery   = shift;
     my $typeQuery  = shift;
     my $precision  = shift;
+    my $minOlap    = shift;
+
+    my @records = ();
+
+    if (!$endQuery || !$typeQuery || !$precision) {
+        return @records;
+    }
 
     # Remove chr if present
     if ($chrQuery =~/^chr/) {
@@ -167,12 +181,9 @@ sub tabixQuery {
 
     my $str = `$::tabix $::gnomADvcf $chrQuery:$startQuery-$endQuery`;   
     chomp $str;
-    print "$::tabix $::gnomADvcf $chrQuery:$startQuery-$endQuery\n" 
-        if $::verbose;
+    print "$::tabix $::gnomADvcf $chrQuery:$startQuery-$endQuery\n" if $::verbose;
 
     my @tmpStr = split(/\n/, $str);
-
-    my @records = ();
 
     foreach my $entry (@tmpStr) {
 
@@ -206,7 +217,7 @@ sub tabixQuery {
             }
             # But do it for PRECISE calls
             else {
-                if ($overlapQuery >= 0.7 && $overlapDB >= 0.7 ) {
+                if ($overlapQuery >= $minOlap && $overlapDB >= $minOlap ) {
                     push @records, $joinedInfo;               
                 }
             }
@@ -215,7 +226,7 @@ sub tabixQuery {
     return @records;
 }
 
-################
+################################
 sub isGzipped {
     my $inputFile = shift;
     if ($inputFile =~/.gz/) {
@@ -226,13 +237,13 @@ sub isGzipped {
     }
 }
 
-################
+################################
 sub returnVcfFields {
     
     my %headerVCF = ();
 
     my @infoArray = ();
-    open (IN, "$::zcat $::gnomADvcf | ") || die " Unable to open $::gnomADvcf\n";
+    open (IN, "$::zcat $::gnomADvcf | ") || die " ERROR: Unable to open $::gnomADvcf\n";
     while (my $line=<IN>) {
         chomp $line;
         if ($line =~/^##INFO/) {
@@ -245,7 +256,6 @@ sub returnVcfFields {
     my $i = 0;
     foreach my $field (@infoArray) {
         my @info = split(/,/, $field);
-        # ##INFO=<ID=AC,Number=A,Type=Integer,Description="Number of non-reference alleles observed (for biallelic sites) or individuals at each copy state (for multiallelic sites).">
         my $tag = $info[0];
         $tag =~s/INFO=<ID=//;
         $tag =~s/#//g;
@@ -256,8 +266,7 @@ sub returnVcfFields {
     return %headerVCF;
 }
 
-
-######################
+################################
 sub calculateOverlap {
 
     my $chr   = shift;

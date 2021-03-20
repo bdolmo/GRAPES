@@ -8,7 +8,6 @@ use Term::ANSIColor qw(:constants);
 use Parallel::ForkManager;
 use Statistics::Descriptive;
 use Sort::Key::Natural;
-use Chart::Gnuplot;
 use JSON::MaybeXS;
 use Data::Dumper;
 use Config;
@@ -37,6 +36,11 @@ if (!-e "$currentDir/db/gnomad") {
 
 if (!-e "$currentDir/db/sqlite") {
   mkdir "$currentDir/db/sqlite";
+}
+
+
+if (!-e "$currentDir/db/gencode.v27") {
+  mkdir "$currentDir/db/gencode.v27";
 }
 
 my $cut  = `which cut`;
@@ -302,18 +306,26 @@ print(\"Installing ggplot2:\n\"); install.packages(\"ggplot2\", repos = \"http:/
 print(\"INFO: ggplot2 is already installed\n\")
 }\n";
 
+	print R "if (!is.installed(\"argparse\")){
+print(\"Installing argparse:\n\"); install.packages(\"argparse\", repos = \"http://cran.us.r-project.org\")
+}";
+    print R "else {
+print(\"INFO: argparse is already installed\n\")
+}\n"; 
+
+	print R "if (!requireNamespace(\"BiocManager\", quietly = TRUE)){
+print(\"Installing argparse:\n\"); install.packages(\"BiocManager\", repos = \"http://cran.us.r-project.org\")
+print(BiocManager::install(\"GenomicRanges\"))
+}";
+    print R "else {
+print(\"INFO: BiocManager is already installed\n\")
+}\n"; 
+
     print R "if (!is.installed(\"RColorBrewer\")){
 print(\"Installing RColorBrewer:\n\"); install.packages(\"RColorBrewer\", repos = \"http://cran.us.r-project.org\")
 }";
     print R "else {
 print(\"INFO: RColorBrewer is already installed\n\")
-}\n";
-
-    print R "if (!is.installed(\"ggsignif\")){
-print(\"Installing ggsignif:\n\"); install.packages(\"ggsignif\", repos = \"http://cran.us.r-project.org\")
-}";
-    print R "else {
-print(\"INFO: ggsignif is already installed\n\")
 }\n";
 
     print R "if (!is.installed(\"gtools\")){

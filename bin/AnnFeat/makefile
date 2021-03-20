@@ -12,7 +12,7 @@ LDFLAGS= ../SeqLib/bin/libseqlib.a
 %.o: src/%.c*
 	@echo ' Building file: $<'
 	@echo ' Invoking: GCC C++ Compiler'
-	$(CC) -I${SEQLIB} $(INC) $(LIB) -lhts -lboost_system -lboost_filesystem -c -fopenmp -std=c++11 -o "$@" "$<"
+	$(CC) -I${SEQLIB} $(INC) $(LIB) -O2 -lhts -lboost_system -lboost_filesystem -c -fopenmp -std=c++11 -o "$@" "$<"
 	@echo ' Finished building: $<'
 	@echo ' '
 
@@ -28,7 +28,7 @@ varCall.o \
 AnnFeat: $(OBJS)
 	@echo ' Building target: $@'
 	@echo ' Invoking: GCC C++ Linker' 
-	$(CC) -o $@ $(CFLAGS) $(OBJS) $(LDFLAGS) $(INC) -lhts -lboost_program_options -lboost_system -lboost_filesystem -lz -fopenmp
+	$(CC) -o $@ $(CFLAGS) $(OBJS) $(LDFLAGS) $(INC) -O2 -lhts -lboost_program_options -lboost_system -lboost_filesystem -lz -fopenmp
 	export LD_LIBRARY_PATH=../SeqLib/htslib
 	@echo ' Finished building target: $@'
 	@echo ' '

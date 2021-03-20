@@ -98,7 +98,7 @@ using namespace SeqLib;
 		std::vector<int> insert_sizes;
 		double mean_isize;
 		int sum = 0;
-	        int maxISize = 1000;
+	    int maxISize = 1000;
 		double accum = 0.0;
 
 		std::vector<int> Positions;
@@ -121,10 +121,10 @@ using namespace SeqLib;
 				std::string chrom =  r.ChrName();
 			
 				if (l.chr == "23" || l.chr == "chr23" || l.chr == "X" || l.chr == "chrX") { 
- 			       		countX++;
+ 			       	countX++;
 			        }
 				else{
-			       		count++;
+			       	count++;
 				}      
 
 			    int Isize = r.FullInsertSize();
