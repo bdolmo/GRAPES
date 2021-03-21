@@ -9,6 +9,7 @@ use Parallel::ForkManager;
 use Statistics::Descriptive;
 use Sort::Key::Natural;
 use JSON::MaybeXS;
+use Excel::Writer::XLSX;
 use Data::Dumper;
 use Config;
 use DBI;

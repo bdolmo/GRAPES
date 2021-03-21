@@ -10,7 +10,7 @@
 #### What's new in GRAPES 0.9.5 ? March-2021
 * New scoring metric to evaluate the confidence of each CNV.
 * Improved single-exon CNV detection.
-* Improved performance speed.
+* Improved speed performance.
 * BAF extraction on the fly.
 * Several bug fixes.
 
@@ -48,11 +48,12 @@ docker run -it bdolmo/grapes:latest GRAPES
 * Parallel::ForkManager
 * Sort::Key::Natural
 * Statistics::Descriptive
-* JSON::MaybeXS;
+* JSON::MaybeXS
+* Excel::Writer::XLSX
 
 You can install them through CPAN:
 ```
-cpan Parallel::ForkManager Sort::Key::Natural Statistics::Descriptive JSON::MaybeXS
+cpan Parallel::ForkManager Sort::Key::Natural Statistics::Descriptive JSON::MaybeXS Excel::Writer::XLSX
 ```
 Then you can download and install the latest release:
 ```
@@ -66,9 +67,6 @@ In addition it will download both 75-mer and 100-mer mappability tracks for GRCh
 
 ## Commands
 ### Targeted sequencing analysis: ```GRAPES wes```
-```
-./GRAPES wes [-pooled | -cases -controls] -b <ROI_BED> -g <GENOME_FASTA> -o <OUTPUT_DIR> -t <nCPU> <OPTIONS>
- ```
 
 ##### Example1: Pooled Analysis (creates a reference using all available samples):
  ```

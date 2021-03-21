@@ -1,6 +1,5 @@
 #!/usr/bin/env perl
 
-
 package Ratio;
 
 use strict;
@@ -11,8 +10,7 @@ use Statistics::Descriptive;
 use Parallel::ForkManager;
 use List::MoreUtils qw(uniq);
  
- 
- #####################################################################################
+  #####################################################################################
  #	  Calculate Copy Number Ratios for the merged file for ON and OFF target         #
  #####################################################################################
  sub calculateRatioOfftarget {
