@@ -447,9 +447,9 @@ if ($PCAvariance > 1 || $PCAvariance < 0) {
 }
 
 $lowerDelCutoff = 0.35 if !$lowerDelCutoff;
-$upperDelCutoff = 0.71 if !$upperDelCutoff;
-$lowerDupCutoff = 1.24 if !$lowerDupCutoff;
-$minCorrelation = 0.5 if !$minCorrelation;
+$upperDelCutoff = 0.70 if !$upperDelCutoff;
+$lowerDupCutoff = 1.30 if !$lowerDupCutoff;
+$minCorrelation = 0.92 if !$minCorrelation;
 $minSampleSizeCluster = 2 if !$minSampleSizeCluster;
 $maxSampleSizeCluster = 15 if !$maxSampleSizeCluster;
 $minZscore  = 2.58 if !$minZscore;

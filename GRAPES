@@ -73,7 +73,7 @@ my $noBreakpoint ="";
 my $noPlotCNV    ="";
 my $noFilterDiscordantOnly = "";
 
-my $minCorrelation;     # Default minimum correlation
+my $minCorrelation = 0.92;     # Default minimum correlation
 my $maxSampleSizeCluster = 15; # Default maximum number of samples to build a single baseline
 my $minSampleSizeCluster = 4;  # Default minimum number of samples to build a single baseline
 my $minOfftargetReads = 10e6; # Default minimum number of offtarget reads needed to trigger analysis
@@ -81,8 +81,8 @@ my $minOfftargetSD    = 0.2; # Default minimum standard deviation of offtarget r
 my $PCAvariance      = 0.7;
 
 our $lowerDelCutoff = 0.35;    # Default minimum ratio cutoff for deletions. highly permissive
-our $upperDelCutoff = 0.71;    # Default maximum ratio cutoff for deletions. highly permissive
-our $lowerDupCutoff = 1.24;    # Default minimum ratio cutoff for duplications. highly permissive
+our $upperDelCutoff = 0.70;    # Default maximum ratio cutoff for deletions. highly permissive
+our $lowerDupCutoff = 1.30;    # Default minimum ratio cutoff for duplications. highly permissive
 our $minSizeSV = 50; # Minimum size in bp required to output an SV
 our $minZscore = 2.5; # Corresponding to a 99.5% percentile 
 our $chromo;
@@ -851,14 +851,14 @@ sub Help2 {
    --verbose	              Print sub-command messages\n\n";
 
     print BOLD GREEN "   PARAMS" , RESET, "\n";
-	print "   --mincorr            FLOAT     Minimum sample correlation to build a reference set (default = 0.91)
+	print "   --mincorr            FLOAT     Minimum sample correlation to build a reference set (default = 0.92)
    --minrefsize         INT       Minimum number of samples to build a single baseline (default = 2)
    --maxrefsize         INT       Maximum number of samples to build a single baseline (default = 15)
    --minzscore          FLOAT     Minimum Z-score required to output a CNV prediction (default = 2.58)
    --minpcavariance     FLOAT     Minimum variance to remove when normalizing by PCA (default = 0.7)
    --lowerdelcutoff     FLOAT     Lower-bound deletion cutoff ratio (default = 0.35)
-   --upperdelcutoff     FLOAT     Upper-bound deletion cutoff ratio (default = 0.71)
-   --lowerdupcutoff     FLOAT     Lower-bound duplication cutoff ratio (default = 1.24)
+   --upperdelcutoff     FLOAT     Upper-bound deletion cutoff ratio (default = 0.70)
+   --lowerdupcutoff     FLOAT     Lower-bound duplication cutoff ratio (default = 1.30)
    --minofftargetreads  INT       Minimum number of offtarget reads required to trigger off-target analysis (default = 1e6)
    --minofftargetsd     FLOAT     Minimum number of std.dev from off-target rartios trigger off-target analysis	(default = 0.2)
    --minsvsize          INT       Minimum SV size (in bp) to report a breakpoint call (default = 15)

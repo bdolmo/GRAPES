@@ -8,7 +8,7 @@
 * Dynamic update of sample references using SQLite.
 
 #### What's new in GRAPES 0.9.5 ? March-2021
-* New scoring metric to evaluate the confidence of each CNV
+* New scoring metric to evaluate the confidence of each CNV.
 * Improved single-exon CNV detection.
 * Improved performance speed.
 * BAF extraction on the fly.
