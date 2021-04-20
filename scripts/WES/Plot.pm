@@ -216,7 +216,7 @@ sub plotSingleExon2 {
 
 			print" INFO: Plotting sample $samplename\n";
 
-			open (R, ">", "$outputDir/plotScatter.R") || die " ERROR: Cannot open $outputDir/plotScatter.R\n";
+			open (R, ">", "$outputDir/$samplename.plotScatter.R") || die " ERROR: Cannot open $outputDir/$samplename.plotScatter.R\n";
 			print R "$libraries\n";
 			print R "mydata<-read.table(file= \"$file\", sep =\"\t\",check.names = FALSE, header=FALSE)\n";
 			print R "attach(mydata)\n";
@@ -243,9 +243,9 @@ sub plotSingleExon2 {
 			print R "myplot\n";
 			print R "dev.off()\n";
 
-			my $cmd="$::Rscript $outputDir/plotScatter.R $::devNull";
+			my $cmd="$::Rscript $outputDir/$samplename.plotScatter.R $::devNull";
 			system $cmd;
-			unlink("$outputDir/plotScatter.R");
+			#unlink("$outputDir/$samplename.plotScatter.R");
 		}
 	}
  }

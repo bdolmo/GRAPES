@@ -48,10 +48,11 @@ our $targetDepth = "$dirname/../bin/TargetDepth/targetDepth.pl";
 # ReportPDF will be deprecated soon for HTML report.
 our $reportExe = "$dirname/createReport.pl"; 
 
-our $runAnnotate = "$dirname/../scripts/runAnnotate";
-
 # Tool for counting offtarget reads
 our $offtargetExtractor = "$dirname/../bin/offtarget/extractOfftarget";
+
+# Megadepth fast coverage extraction 
+our $megadepth = "$dirname/../bin/megadepth/megadepth";
 
 # R script for calling single exon CNVs 
 our $analyzeSingleExonR = "$dirname/../scripts/analyzeSingleExon.R";
@@ -853,7 +854,7 @@ $minZscore  = 2.58 if !$minZscore;
 	$sampleHash{$sampleName}{MEANCOUNTSX} = ".";
 	$sampleHash{$sampleName}{TOTALREADS_ONTARGET_X} = ".";
 	$sampleHash{$sampleName}{TOTALREADS_OFFTARGET_X} = ".";
-	$sampleHash{$sampleName}{N_CALL}      = 0;
+	$sampleHash{$sampleName}{N_CALL}         = 0;
 	$sampleHash{$sampleName}{N_NO_CALL}      = 0;
 	$sampleHash{$sampleName}{TOTALREADS}     = undef;
 	$sampleHash{$sampleName}{READSONTARGET}  = ".";
@@ -927,6 +928,8 @@ if ( readDepthIsInvolved() ) {
 			system ($cmd);
 		}
 		elsif ($analysisMode eq 'exome') {
+
+			#$cmd = "$::megadepth --threads $threads --annotation $bed --op mean > $ontargetDir/$outName.ReadCounts.bed";
 			$cmd = "$targetDepth -i $input -o $ontargetDir -n $outName -g $genome -b $bed -c -t $threads $wverb";
 			print "$cmd\n" if $::verbose;
 			system ($cmd);

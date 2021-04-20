@@ -7,23 +7,23 @@ use List::Util qw(min max);
 use Sort::Key::Natural qw(natsort);
 
 ###############################
-sub convertMosdepth2Grapes {
-	my $sample = shift;
-	# Output files fro mosdepth:
-	#*.mosdepth.global.dist.txt
-	#*.mosdepth.region.dist.txt
-	#*.mosdepth.summary.txt
-	#*.regions.bed.gz
-	#*.regions.bed.gz.csi
+# sub convertMosdepth2Grapes {
+# 	my $sample = shift;
+# 	# Output files fro mosdepth:
+# 	#*.mosdepth.global.dist.txt
+# 	#*.mosdepth.region.dist.txt
+# 	#*.mosdepth.summary.txt
+# 	#*.regions.bed.gz
+# 	#*.regions.bed.gz.csi
 
-	my $cmd = "$::gunzip -c $::offtargetDir/$sample.offtarget.regions.bed.gz > $::offtargetDir/$sample.offtarget_counts.tmp.bed";
-	print "$cmd\n" if $::verbose;
-	system $cmd;
+# 	my $cmd = "$::gunzip -c $::offtargetDir/$sample.offtarget.regions.bed.gz > $::offtargetDir/$sample.offtarget_counts.tmp.bed";
+# 	print "$cmd\n" if $::verbose;
+# 	system $cmd;
 
-	unlink("$::offtargetDir/$sample.offtarget.mosdepth.global.dist.txt");
-	unlink("$::offtargetDir/$sample.offtarget.mosdepth.region.dist.txt");
-	unlink("$::offtargetDir/$sample.offtarget.mosdepth.summary.txt");
-}
+# 	unlink("$::offtargetDir/$sample.offtarget.mosdepth.global.dist.txt");
+# 	unlink("$::offtargetDir/$sample.offtarget.mosdepth.region.dist.txt");
+# 	unlink("$::offtargetDir/$sample.offtarget.mosdepth.summary.txt");
+# }
 ###############################
  sub extractOfftargetCounts {
 
@@ -33,7 +33,7 @@ sub convertMosdepth2Grapes {
 
 	foreach my $bam (@offtargetBams) {
 		
-		my $pid = $::pm -> start() and next;
+		#my $pid = $::pm -> start() and next;
 
 		my $sample = basename($bam);
 		$sample =~s/.offTarget.bam//;
@@ -63,8 +63,11 @@ sub convertMosdepth2Grapes {
 				#convertMosdepth2Grapes($sample);
 
 				# Extract read counts across all off-target regions
-				my $cmd = "$::offtargetExtractor $bam $::genome $off_bed > $bamDir/$sample.offtarget_counts.tmp.bed";
-     			system $cmd;
+				#my $cmd = "$::offtargetExtractor $bam $::genome $off_bed > $bamDir/$sample.offtarget_counts.tmp.bed";
+     			#system $cmd;
+
+				my $cmd = "$::megadepth --threads $::threads --annotation $off_bed > $bamDir/$sample.offtarget_counts.tmp.bed";
+				system $cmd;
 
 				# Get GC content, this is slow for very large windows. Use precomputed file? Tabix?
 				$cmd = "$::bedtools nuc -fi $::genome -bed $bamDir/$sample.offtarget_counts.tmp.bed |";
@@ -77,7 +80,7 @@ sub convertMosdepth2Grapes {
 				$cmd = "$::sed -i '1d' $bamDir/$sample.offtarget_counts_nomap.bed";
 				system $cmd;
 
-				# Annotate mappability of every window. Again, thi slows down the process. Use mean MAPQ value per region instead?
+				# Annotate mappability of every window. Again, this slows down the process. Use mean MAPQ value per region instead?
 				getMappabilityOfftarget("$bamDir/$sample.offtarget_counts_nomap.bed", $bamDir);
 
 				# Joining single pieces that come from the same window. 
@@ -94,9 +97,9 @@ sub convertMosdepth2Grapes {
 		#else {
 	#		print " INFO: Skipping Offtarget count extraction of sample $sample\n";
 		#}
-		$::pm->finish;
+		#$::pm->finish;
  	}
-	$::pm->wait_all_children;	
+	#$::pm->wait_all_children;	
  }
 
 ###############################
@@ -154,7 +157,8 @@ sub convertMosdepth2Grapes {
 		my $length = $Regions{$region}{END}-$Regions{$region}{START};
 		my $map = sprintf "%.3f", $Regions{$region}{MAP}/$Regions{$region}{EFFECTIVE_LENGTH};
 		my $gc  = sprintf "%.3f", $Regions{$region}{GC}/$Regions{$region}{EFFECTIVE_LENGTH};
-		print OUT "$Regions{$region}{CHR}\t$Regions{$region}{START}\t$Regions{$region}{END}\t$region\t$gc\t$map\t$Regions{$region}{COUNTS}\n";
+		print OUT "$Regions{$region}{CHR}\t$Regions{$region}{START}\t$Regions{$region}{END}\t"
+		. "$region\t$gc\t$map\t$Regions{$region}{COUNTS}\n";
 	}
 	close OUT;
 	
@@ -187,7 +191,7 @@ sub getMappabilityOfftarget {
   if (!-s $outfile) {
 
 	# Intersecting mappability track with the targeted regions
-	my $cmd .= "$::bedtools intersect -a $::mappTrack -b $countsFile -wo | ";
+	my $cmd .= "$::bedtools intersect -a $::mappTrack -b $countsFile -wo  -sorted | ";
     $cmd .= "$::awk '{ size=\$7-\$6; marginal=100*(\$NF*\$4)/size;  print \$5\"\t\"\$6\"\t\"\$7\"\t\"\$8\"\t\"\$4\"\t\"\$9\"\t\"marginal}'";
 	$cmd .= "| perl $::getMapOfftarget | $::sort -V  > $mappability";
 	print "$cmd\n" if $::verbose;

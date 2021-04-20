@@ -18,7 +18,7 @@ sub call {
 
     $chromo = "" if !$chromo;
     my $cmd = "perl $::executeRCP $countFile $outDir $outName $chromo";
-    #system $cmd;
+    system $cmd;
 
     open (IN, "$::zcat $outDir/$outName.seg.gz |") || die " ERROR: Unable to open $outDir/$outName.seg.gz\n";
     open (OUT, ">", "$outDir/CNV.tmp.txt") || die " ERROR: Unable to open $outDir/CNV.tmp.txt\n";

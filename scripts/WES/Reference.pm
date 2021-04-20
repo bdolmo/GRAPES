@@ -206,7 +206,7 @@ sub mergeRunWithDB {
     my @sampDB = @$sampRefDB;
 
     # Get uniq samples from both files
-    my @samples = uniq (@sampNC, @sampDB);
+    my @samples = natsort(uniq (@sampNC, @sampDB));
 
     my %HoNC = %$hrefNC; # Hash of Normalized Coverage
     my %HoDB = %$hrefDB; # Hash of Database

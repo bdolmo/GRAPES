@@ -207,10 +207,20 @@ sub scoreMultipleExon {
 	my $nRoisMetric   = $nRois > 1 ? 1 : 0;
 	my $absDiffMetric = 1-$absDiffRatio > 0 ? 1-$absDiffRatio : 0;
 	my $signal2noiseMetric = $s2n > 10 ? 1 : 0;
-	my $signal2noiseControlsMetric = $s2nc > 10 ? 1 : 0;
-
-	my $RLM = 0.30*$nRoisMetric + 0.50*$absDiffMetric + 0.10*$signal2noiseMetric + 0.10*$signal2noiseControlsMetric;
+	my $signal2noiseControlsMetric;
 	
+	if ($s2nc eq '.'){
+		$signal2noiseControlsMetric = 0;
+	}
+	else{
+		$signal2noiseControlsMetric = $s2nc > 10 ? 1 : 0;
+	} 
+	my $nRoiWeight   = 0.1+($nRois*(0.05));
+	my $signalWeight = 1-$nRoiWeight;
+
+	my $RLM = ($nRoiWeight*$nRoisMetric) + ($signalWeight*0.70*$absDiffMetric) + ($signalWeight*0.15*$signal2noiseMetric) + ($signalWeight*0.15*$signal2noiseControlsMetric);
+	$RLM = 1 if $RLM > 1;
+
 	# Score = SLM + RLM
 	my $score = 0.4*$SLM + 0.6*$RLM;
 } 
@@ -235,9 +245,7 @@ sub dumpFinalCalls {
 		my $cmd = "$::cat @tmpFiles | $::sort -V | $::uniq > $finalCalls";
 		system $cmd if @tmpFiles; 
 	} 
-
 } 
-
 ####################################################################
 sub getCiposCiend {
 
@@ -962,7 +970,7 @@ sub getCiposCiend {
 
   my $cmd = "$::Rscript $::analyzeSingleExonR --raw_calls $outputDir/master_single_calls.bed --coverage_data $ungzRatioFile ";
   $cmd.= " --references $::HoF{REFERENCES} --min_zscore $::minZscore --min_s2n 5 --lower_del_cutoff $::lowerDelCutoff ";
-  $cmd.= " --upper_del_cutoff $::upperDelCutoff --lower_dup_cutoff $::lowerDupCutoff --output_dir $outputDir $::devNull";
+  $cmd.= " --upper_del_cutoff $::upperDelCutoff --lower_dup_cutoff $::lowerDupCutoff --output_dir $outputDir";
   system($cmd);
 
   my @tmpRdata = glob("$outputDir/*single.exon.cnv.bed");

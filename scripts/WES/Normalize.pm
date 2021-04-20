@@ -37,7 +37,7 @@ use Sort::Key::Natural qw(natsort);
 	my @tmpOfftargetChr = ();
 
    	# Normalization
-	foreach my $sample ( sort keys %::sampleHash ) {
+	foreach my $sample ( natsort keys %::sampleHash ) {
 
 		$::sample{$sample}{MEDIANCOUNTS} = Utils::medianRefVar($::sample{$sample}{ARR_COUNTS});
 
@@ -125,7 +125,7 @@ use Sort::Key::Natural qw(natsort);
 	# Grouping header info
 	my @tmpSamp;
 	my $str;
-	foreach my $sample ( sort keys %::sampleHash ) {
+	foreach my $sample ( natsort keys %::sampleHash ) {
 
 		my $header_sample = $sample;
 		$header_sample =~s/.bam//;
@@ -152,7 +152,7 @@ use Sort::Key::Natural qw(natsort);
 		# Accessing secondary reference
 		my $sample_ref =  $hashOfRegion->{$coordinate};
 
-		foreach my $sample ( sort keys %$sample_ref) {
+		foreach my $sample ( natsort keys %$sample_ref) {
 			next if $sample eq 'GC';
 
 			$sample_ref->{ $sample }->{LENGTH_NORM} = $sample_ref->{ $sample }->{GC_NORM};
@@ -276,7 +276,7 @@ use Sort::Key::Natural qw(natsort);
 
 						my @tmpLines = split (/\n/, $tmpStr);
 						my $i = 5;
-						foreach my $sample (sort keys %::sampleHash) {
+						foreach my $sample (natsort keys %::sampleHash) {
 							my @array = ();
 							foreach my $mline (@tmpLines) {
 								#chr1	237821243	237821244	NM_001035_53_54;RYR2	35.000000	0.478	0.450	0.417	0.557	0.430
@@ -324,7 +324,7 @@ use Sort::Key::Natural qw(natsort);
 
 		my $str;
 
-		foreach my $sample (sort keys %::sampleHash) {
+		foreach my $sample (natsort keys %::sampleHash) {
 			my $gc_norm;
 			if (defined $gc_interval) {
 				if (exists $::GC{$sample}{$gc_interval}{MEDIAN}) {
@@ -644,7 +644,7 @@ use Sort::Key::Natural qw(natsort);
 
 	my $offtargetDir = shift;
 
-	foreach my $sample (sort keys %::sampleHash ) {
+	foreach my $sample (natsort keys %::sampleHash ) {
 
 		my @normCounts;
 		my @normCountsX;
@@ -665,7 +665,7 @@ use Sort::Key::Natural qw(natsort);
 
 		my @tmpFile   = readOfftargetFile($countFile, $sample);
 
-		foreach my $gc_interval (sort keys %{$::GC{$sample}}) {
+		foreach my $gc_interval (natsort keys %{$::GC{$sample}}) {
 			if ($::GC{$sample}{$gc_interval}{ARR_COUNTS} && $::GC{$sample}{$gc_interval}{ARR_COUNTS} > 50 ) {
 				$::GC{$sample}{$gc_interval}{MEDIAN} = Utils::medianRefVar($::GC{$sample}{$gc_interval}{ARR_COUNTS});
 				$::GC{$sample}{$gc_interval}{ARR_COUNTS} = ();

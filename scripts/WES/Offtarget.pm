@@ -166,7 +166,8 @@ sub createBins {
 
 
  # Adding some padding coordinates at each peak identified
- my $cmd = "$::cat @narrowPeaksFiles | $::sort -V -u | $::awk '{if (\$2<\$3) {print \$1\"\t\"\$2-400\"\t\"\$3+400\"\t\"\"mergedPaddedNarrowPeaks\"} else if (\$2>\$3) {print \$1\"\t\"\$2+400\"\t\"\$3-400\"\t\"\$4\"\t\"\"mergedPaddedNarrowPeaks\"}}' - | $::grep -v '\_'> $offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed";  
+ my $cmd = "$::cat @narrowPeaksFiles | $::sort -V -u " .
+ " | $::awk '{if (\$2<\$3) {print \$1\"\t\"\$2-400\"\t\"\$3+400\"\t\"\"mergedPaddedNarrowPeaks\"} else if (\$2>\$3) {print \$1\"\t\"\$2+400\"\t\"\$3-400\"\t\"\$4\"\t\"\"mergedPaddedNarrowPeaks\"}}' - | $::grep -v '\_'> $offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed";  
  system($cmd);
 
  # Deleting inconsistent coordinate entries when poiting out of the chromosome length
@@ -214,6 +215,10 @@ sub createBins {
 		# Defnining offtarget window size based on this empirically derived rule. 
 		# May be worth to add a more advanced method: https://academic.oup.com/bioinformatics/article/30/13/1823/2422194
 		$::sampleHash{$sample}{OFFTARGETBIN}   = $counts > 0 ? int ( (4000000 *150000)/$counts ) : 10e6; 
+		if ($::sampleHash{$sample}{OFFTARGETBIN} < 50000) {
+			$::sampleHash{$sample}{OFFTARGETBIN} = 50000;
+		} 
+
 		$::sampleHash{$sample}{READSOFFTARGET} = $counts;
 
 		print TMP "$sample\t$::sampleHash{$sample}{READSOFFTARGET}\t$::sampleHash{$sample}{OFFTARGETBIN}\n";
@@ -257,7 +262,7 @@ sub estimateWindowSize {
 	my $binSize = shift;
 	my $bam     = shift;
 
-	my $cmd = "$::bedtools bamtobed -i $bam | $::awk \'{ print \$1\"\t\"\$2\"\t\"\$3}\'| $::sort -V > $outDir/$sample.offtarget.coordinates.bed";
+	my $cmd = "$::bedtools bamtobed -i $bam | $:cut -f 1,2,3 | $::sort -V > $outDir/$sample.offtarget.coordinates.bed";
 	system $cmd if !-e "$outDir/$sample.offtarget.coordinates.bed";
 
 	my $off_bed = createPseudowindows($outDir, $sample, $binSize);

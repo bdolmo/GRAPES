@@ -213,7 +213,7 @@ for (row in 1:nrow(raw_calls_df)){
 
     zscore_case <- round(zscore(ratio_data_controls, median_ratio_case), 3)
 
-    cat(" INFO: ", exon, " z-score=", zscore_case, " case_ratio=", median_ratio_case, " control_ratio=", median_ratio_controls, "\n")
+    cat(" INFO: ", " sample=", sample_name, " exon=", exon, " z-score=", zscore_case, " case_ratio=", median_ratio_case, " control_ratio=", median_ratio_controls, "\n")
     if ( (signal_to_noise_controls > min_s2n) & (signal_to_noise_case > min_s2n) & (abs(zscore_case) > min_zscore) ){
 
         if(((median_ratio_case < upper_del_cutoff) & (median_ratio_case > lower_del_cutoff))|((median_ratio_case > lower_dup_cutoff))) {

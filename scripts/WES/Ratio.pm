@@ -9,7 +9,8 @@ use List::MoreUtils;
 use Statistics::Descriptive;
 use Parallel::ForkManager;
 use List::MoreUtils qw(uniq);
- 
+use Sort::Key::Natural qw(natsort);
+
   #####################################################################################
  #	  Calculate Copy Number Ratios for the merged file for ON and OFF target         #
  #####################################################################################
@@ -17,7 +18,7 @@ use List::MoreUtils qw(uniq);
 
 	my $offtargetDir = shift;
 
-	foreach my $sample (sort keys %::sampleHash ) {
+	foreach my $sample (natsort keys %::sampleHash ) {
 
 		# Skipping ratio calculation when not applicable
 		next if exists $::referenceHash{$sample};
@@ -89,7 +90,7 @@ use List::MoreUtils qw(uniq);
 	my $ontargetDir  = shift;
 	my $offtargetDir = shift;
 
-	foreach my $sample (sort keys %::sampleHash ) {
+	foreach my $sample (natsort keys %::sampleHash ) {
 
 		my $ontargetRatios   = "$ontargetDir/$sample.ratios.txt.gz";
 		my $offtargetRatios  = "$offtargetDir/$sample.ratios.txt.gz";
@@ -286,7 +287,7 @@ use List::MoreUtils qw(uniq);
    my $k = 8;
 
    # Splitting Ratios file for segmentation and deleting outlier ratios
-   foreach my $sample (	sort keys %::sampleHash ) {
+   foreach my $sample (	natsort keys %::sampleHash ) {
 
 	   	# Skipping database references 
 		if (exists $::referenceHash{$sample}) {
@@ -323,7 +324,7 @@ use List::MoreUtils qw(uniq);
 			$k=$k+2;
 		}
    }
-      Utils::compressFile($::HoF{RATIOS_ON});
+   Utils::compressFile($::HoF{RATIOS_ON});
 
  }
 
