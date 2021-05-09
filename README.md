@@ -103,11 +103,11 @@ docker run -t -i \
 
 ##### I/O:
 ```
--o,--outdir	        STRING	  Output directory
--g,--genome_fasta	  STRING    Genome reference in FASTA format
--r,--genome_version	STRING    Genome version. Choose: hg19, hg38 (default = hg19)
--b,--bed	          STRING	  Regions file in BED format
--t,--threads	        INT	    Number of CPUs (default = 1)
+-o,--outdir          STRING    Output directory
+-g,--genome_fasta    STRING    Genome reference in FASTA format
+-r,--genome_version  STRING    Genome version. Choose: hg19, hg38 (default = hg19)
+-b,--bed             STRING    Regions file in BED format
+-t,--threads         INT       Number of CPUs (default = 1)
 ```
 
 ##### Options:
@@ -140,25 +140,25 @@ docker run -t -i \
   --noreporthtml           Turn off report HTML creation
 --filterdiscordantonly     Filter discordant-only SV predictions (default = true)
   --nofilterdiscordantonly Turn off discordant-pair only filtering
---verbose	                 Print sub-command messages
+--verbose                  Print sub-command messages
  ```
 ##### Tuning parameters:
   ```
-   --mincorr            FLOAT	  Minimum pairwise-correlation to build a reference set (default = 0.91)
-   --minrefsize         INT 	  Default minimum number of samples to build a single baseline (default = 2)
-   --maxrefsize         INT   	Default maximum number of samples to build a single baseline (default = 15)
+   --mincorr            FLOAT   Minimum pairwise-correlation to build a reference set (default = 0.91)
+   --minrefsize         INT     Default minimum number of samples to build a single baseline (default = 2)
+   --maxrefsize         INT     Default maximum number of samples to build a single baseline (default = 15)
    --minzscore          FLOAT   Minimum Z-score required to output a CNV prediction (default = 2.58)
-   --pcavariance	      FLOAT 	Variance to remove when normalizing by PCA (default = 0.7)
-   --lowerdelcutoff     FLOAT	  Lower-bound deletion cutoff ratio (default = 0.35)
-   --upperdelcutoff     FLOAT	  Upper-bound deletion cutoff ratio (default = 0.71)
-   --lowerdupcutoff     FLOAT	  Lower-bound duplication cutoff ratio (default = 1.24)
-   --minofftargetreads	INT	    Default minimum number of offtarget reads required to trigger off-target analysis (default = 1e6)
-   --minofftargetsd	    FLOAT	  Default minimum number of std.dev from off-target rartios trigger off-target analysis	(default = 0.2)
+   --pcavariance        FLOAT   Variance to remove when normalizing by PCA (default = 0.7)
+   --lowerdelcutoff     FLOAT   Lower-bound deletion cutoff ratio (default = 0.35)
+   --upperdelcutoff     FLOAT   Upper-bound deletion cutoff ratio (default = 0.71)
+   --lowerdupcutoff     FLOAT   Lower-bound duplication cutoff ratio (default = 1.24)
+   --minofftargetreads  INT     Default minimum number of offtarget reads required to trigger off-target analysis (default = 1e6)
+   --minofftargetsd     FLOAT   Default minimum number of std.dev from off-target rartios trigger off-target analysis	(default = 0.2)
    --minsvsize          INT     Minimum SV size to report a breakpoint call (default = 15)
    --maxsvsize          INT     Maximum SV size to report a breakpoint call (default = 5000000)
-   --mindiscordants     INT	    Minimum number of discordant read pairs (default = 5)
+   --mindiscordants     INT     Minimum number of discordant read pairs (default = 5)
    --mindiscordantssd   INT     Minimum std.deviations from the mean insert size to consider discordant pairs (default = 10)
-   --breakreads         INT	    Minimum number of break reads (default = 5)
+   --breakreads         INT     Minimum number of break reads (default = 5)
   ```
 
 ### SV annotation: ```GRAPES annotate```
