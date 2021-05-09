@@ -4,3 +4,4 @@ bin/htslib/* linguist-vendored
 *.pm linguist-language=Perl
 bin/TargetDepth* linguist-vendored
 bin/offtarget/* linguist-vendored
+bin/megadepth/* linguist-vendored

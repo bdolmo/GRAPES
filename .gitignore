@@ -3,3 +3,4 @@
 *.db
 mappability/
 db/gnomad/
+*.c
