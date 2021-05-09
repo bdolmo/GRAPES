@@ -68,9 +68,9 @@ In addition it will download both 75-mer and 100-mer mappability tracks for GRCh
 ## Commands
 ### Targeted sequencing analysis: ```GRAPES wes```
 
-##### Example1: Pooled Analysis (creates a reference using all available samples):
+##### Workflow 1: Pooled Analysis (creates a reference using all available samples):
  ```
-./GRAPES wes --pooled <bam_dir> --all --bed <targets.bed> --genome <genome.fa> --outdir <output_dir> --threads 4
+ GRAPES wes --pooled <bam_dir> --outdir <output_dir> --bed <roi> --genome <genome_fa> --all
  ```
 
 (docker)
@@ -84,9 +84,9 @@ docker run -t -i \
 -all -pooled /bam_folder/ -b /bed_folder/targets.bed -g /genome_folder/genome.fa -o /out_dir/ -t 4
 ```
 
-##### Example2: Case-Control analysis:
+##### Workflow 2: Case-Control analysis:
 ```
-./GRAPES wes --cases <test.bam> --control <control.bam> --all --bed <targets.bed> --genome <genome.fa> --outdir <output_dir> --threads 4	
+GRAPES wes --cases <bam_dir> --control <bam_dir> --outdir <output_dir> --bed <roi> --genome <genome_fa> --all
 ```
 
 (docker)
@@ -101,45 +101,47 @@ docker run -t -i \
 -all -cases /case_folder/ -controls /control_folder/ -b /bed_folder/targets.bed -g /genome_folder/genome.fa -o /out_dir/ -t 4
 ```
 
-##### Required params:
+##### I/O:
 ```
-   -o,--outdir	STRING	  Output directory
-   -g,--genome	STRING    Genome reference in FASTA format
-   -b,--bed	    STRING	  BED ROIs 
-   -t,--threads	INT	      Number of CPUs (default = 1)
+-o,--outdir	        STRING	  Output directory
+-g,--genome_fasta	STRING    Genome reference in FASTA format
+-r,--genome_version	STRING    Genome version. Choose: hg19, hg38 (default = hg19)
+-b,--bed	        STRING	  Regions file in BED format
+-t,--threads	        INT	  Number of CPUs (default = 1)
 ```
 
-##### Analysis options:
+##### Options:
 ```
-   --all	                  Perform all steps below 
-   --breakpoint             Perform Breakpoint analysis
-     --nobreakpoint         Turn off breakpoint analysis
-   --extract                Extract Depth, GC and Mappability
-   --offtarget	            Perform Off-target analysis
-     --noofftarget          Turn off offtarget analysis
-   --buildref               Build a reference from a pool of samples
-   --callcnv                Perform Copy Ratio and segmentation
-     --nocallcnv            Turn off calling CNVs
-   --normalize              Normalize read depth 
-   	 options:               median (default), PCA\n
-   --plotsingleexon         Plot single exon CNVs
-    --noplotcnv             Turn off CNV plotting
-   --plotlargecnv           Plot segmented CNVs
-    --noplotcnv             Turn off CNV plotting
-   --plotscatter            Plot genome-wide CNV scatter plot
-   --vaf                    Include Variant-Allele Frequency (VAF) analysis
-     --novaf                Turn off VAF analysis
-   --samtools	              Default if --vaf set. Perform variant call with samtools
-   --freebayes	            if --vaf set, perform variant call with freebayes
-   --annotate	              Annotate VCF file with gnomAD v2
-     --noannotate           Turn off VCF annotation
-   --filtervcf	            Filter low qual VCF entries
-     --nofiltervcf          Turn off VCF filtering
-   --reporthtml	            Write results to an HTML file (Only for gene panels)
-     --nonoplotcnv          Turn off report HTML creation
-   --filterdiscordantonly	  Filter discordant-only SV predictions (default = true)
-	 --nofilterdiscordantonly Turn off discordant-only filtering
-   --verbose                Print sub-command messages
+--all	              Perform all steps below
+--refdir                   Input directory where DB references will be stored.
+--breakpoint	              Perform Breakpoint analysis
+  --nobreakpoint	      Turn off breakpoint analysis
+--extract	              Extract Depth, GC and Mappability
+--offtarget	              Perform Off-target analysis
+  --noofftarget	      Turn off offtarget analysis
+--buildref	              Build a reference from a pool of samples
+--callcnv	              Segment and call CNVs
+  --nocallcnv	      Turn off CNV calling
+--normalize	              Normalize read depth. Choose from 'median', 'PCA'. (default='median')
+--plotsingleexon	      Plot single exon CNVs
+  --noplotcnv	      Turn off CNV plotting
+--plotlargecnv	      Plot segmented CNVs
+  --noplotcnv	      Turn off CNV plotting
+--plotscatter	      Plot genome-wide CNV scatter plot
+--vaf	              Include Variant-Allele Frequency (VAF) analysis
+  --novaf	              Turn off VAF analysis
+--samtools	              Default if --vaf set. Perform variant call with samtools
+--freebayes	              if --vaf set, perform variant call with freebayes
+--annotate	              Annotate VCF
+  --noannotate	      Turn off VCF annotation
+--filtervcf	              Filter low qual VCF entries
+  --nofiltervcf	      Turn off VCF filtering
+--reporthtml	              Write results to an HTML file (Only for gene panels)
+  --noreporthtml	      Turn off report HTML creation
+--filterdiscordantonly     Filter discordant-only SV predictions (default = true)
+  --nofilterdiscordantonly Turn off discordant-pair only filtering
+--verbose	              Print sub-command messages
+
  ```
 ##### Tuning parameters:
   ```
@@ -162,7 +164,11 @@ docker run -t -i \
 
 ### SV annotation: ```GRAPES annotate```
  ```
- GRAPES annotate --input_vcf <VCF>  -o <OUTPUT_DIR> -l <MIN_RECIPROCAL_OVERLAP>
+ GRAPES annotate --input_vcf <vcf> --output_dir <output_dir> --r_overlap <reciprocal_overlap>
  ```
-
-
+##### Tuning parameters:
+ ```
+ -i,--input_vcf  STRING  Input VCF file
+ -o,--output_dir STRING  Output directory (default=.)
+ -l,--r_overlap  FLOAT   Reciprocal overlap fraction (default=0.5)
+ ```
