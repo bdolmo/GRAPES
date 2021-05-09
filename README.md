@@ -112,7 +112,7 @@ docker run -t -i \
 
 ##### Options:
 ```
---all	                     Perform all steps below
+--allPerform all steps below
 --refdir                   Input directory where DB references will be stored.
 --breakpoint	             Perform Breakpoint analysis
   --nobreakpoint	         Turn off breakpoint analysis
