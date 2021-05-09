@@ -68,7 +68,7 @@ In addition it will download both 75-mer and 100-mer mappability tracks for GRCh
 ## Commands
 ### Targeted sequencing analysis: ```GRAPES wes```
 
-##### Workflow 1: Pooled Analysis (creates a reference using all available samples):
+#### Workflow 1: Pooled Analysis (creates a reference using all available samples):
  ```
  GRAPES wes --pooled <bam_dir> --outdir <output_dir> --bed <roi> --genome <genome_fa> --all
  ```
@@ -84,7 +84,7 @@ docker run -t -i \
 -all -pooled /bam_folder/ -b /bed_folder/targets.bed -g /genome_folder/genome.fa -o /out_dir/ -t 4
 ```
 
-##### Workflow 2: Case-Control analysis:
+#### Workflow 2: Case-Control analysis:
 ```
 GRAPES wes --cases <bam_dir> --control <bam_dir> --outdir <output_dir> --bed <roi> --genome <genome_fa> --all
 ```
