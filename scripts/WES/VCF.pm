@@ -7,19 +7,21 @@ use warnings;
 use File::Basename;
 
 
-my @arrFields = ( "SVTYPE", "CIPOS", "CIEND", "SVLEN", "EV", "REGIONS", 
-"GENE", "MAPQ", "KDIV", "GC", "MAP", "BR", "ASBR", "PE", "PPE", "RRD", 
+my @arrFields = ( "SVTYPE", "CIPOS", "CIEND", "SVLEN", "EV", "REGIONS",
+"GENE", "MAPQ", "KDIV", "GC", "MAP", "BR", "ASBR", "PE", "PPE", "RRD",
 "MADRD", "CN", "SNR", "SNRC", "ZSCORE", "PRD", "NSNV", "BAF", "CONF_SCORE");
 
 sub generate {
 
     my $inputBed = shift;
+    my $bamFile  = shift;
+    my $sample   = shift;
     my $VCF = $inputBed;
     $VCF =~s/.bed/.vcf/;
 
     open (IN, "<", $inputBed) || die " ERROR: Unable to open $inputBed\n";
     open (VCF, ">", $VCF)     || die " ERROR: Unable to open $VCF\n";
-    my $header = printHeader();
+    my $header = printHeader($bamFile, $sample);
     print VCF "$header";
 
     while (my $line=<IN>) {
@@ -32,7 +34,7 @@ sub generate {
             push @Arr, $Info{$field};
         }
         #$Info{FILTER} =~s/FILTER=//;
-        $Info{FILTER} = 'PASS'; # 
+        $Info{FILTER} = 'PASS'; #
 
         $Info{SVTYPE} =~s/SVTYPE=//;
         print VCF "$tmp[0]\t$tmp[1]\t.\tN\t<$Info{SVTYPE}>\t.\t$Info{FILTER}\t$Info{PRECISION};END=$tmp[2];". join(";", @Arr) . "\tGT:CN\t./.:.\n";
@@ -84,7 +86,7 @@ sub parse {
 ###########################
 sub fetchPattern {
     my $pattern = shift;
-    my $arr  = shift;
+    my $arr     = shift;
     my @array = @$arr;
     #print "@array\n";
 
@@ -98,6 +100,37 @@ sub fetchPattern {
 ###########################
 sub printHeader {
 
+    my $bam    = shift;
+    my $sample = shift;
+
+    # Catching Sequence Name from BAM header
+    my $contigData = `$::samtools view -H $bam | grep 'SN:'`;
+    chomp $contigData;
+
+    # Dump error if contig header fields are missing
+    if (!$contigData) {
+      print " WARNING: Missing contig data from $bam. Output VCF will be inconsistent!\n";
+      exit;
+    }
+    my @contigOutArray  = ();
+    my @contigDataArray = split("\n", $contigData);
+    foreach my $contig (@contigDataArray) {
+      ##contig=<ID=GL000192.1,length=547496>
+      #@SQ	SN:chr2	LN:243199373
+      my @tmp = split("\t", $contig);
+
+      # Declare and substitute
+      (my $chromosome = $tmp[1]) =~s/SN://;
+      (my $length = $tmp[2]) =~s/LN://;
+
+      # Creating contig line
+      my $contigInfo = "##contig=<ID=" . $chromosome . ",length=" . $length . ">";
+      push @contigOutArray, $contigInfo;
+    }
+
+    # Output contig entries
+    my $contigLines = join("\n", @contigOutArray);
+
     my $refGenome = basename ($::genome);
     my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
     my $yyyymmdd = sprintf "%.4d%.2d%.2d", $year+1900, $mon+1, $mday;
@@ -106,6 +139,7 @@ sub printHeader {
 ##fileDate=$yyyymmdd
 ##reference=$refGenome
 ##source=GRAPES
+$contigLines
 ##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of the variant described in this record\">
 ##INFO=<ID=PRECISE,Number=0,Type=Flag,Description=\"Precise structural variation\">
 ##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">
@@ -141,6 +175,6 @@ sub printHeader {
 ##ALT=<ID=INS,Description=\"Insertion\">
 ##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">
 ##FORMAT=<ID=CN,Number=1,Type=Integer,Description=\"Copy number genotype for imprecise events\">
-#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tSAMPLE\n";
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t$sample\n";
     return $header;
 }

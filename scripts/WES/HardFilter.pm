@@ -9,7 +9,7 @@ use Sort::Key::Natural qw(natsort);
 # Annotate on the VCF's FILTER field if the variant passes the quality criteria (PASS) or not (LowQual)
 # Todo: if lowqual, annotate why!
 my @arrFields = ( "END", "SVTYPE", "CIPOS", "CIEND", "SVLEN", "EV", "REGIONS",
-"GENE", "MAPQ", "KDIV", "GC", "MAP", "BR", "ASBR", "PE", "PPE", "RRD", 
+"GENE", "MAPQ", "KDIV", "GC", "MAP", "BR", "ASBR", "PE", "PPE", "RRD",
 "MADRD", "CN", "SNR", "SNRC", "ZSCORE", "PRD", "NSNV", "BAF", "CONF_SCORE");
 
 #################################
@@ -31,9 +31,9 @@ sub filter {
         }
 
         my @tmp = split (/\t/, $line);
-        my $joined = join ("\t", @tmp[0..4]);  
+        my $joined = join ("\t", @tmp[0..4]);
         $seen{$joined}++;
-        
+
         # Skipping already observed variants
         next if $seen{$joined} > 1;
         my %fields = parse($line);
@@ -56,7 +56,7 @@ sub filter {
             #(AAB, ABB) are 0, 0.33, 0.66 and 1 respectively."
             # For deletions we only accept hemizygous variants
             if ($Baf ne "." ) {
-                
+
                 if ( $Baf > 0.4 && $Baf < 0.6  ) {
                     $fields{FILTER} = "badBAF";
                 }
@@ -72,7 +72,7 @@ sub filter {
         foreach my $field (@arrFields) {
             push @Arr, $fields{$field};
         }
-       
+
         $fields{SVTYPE} =~s/SVTYPE=//;
         print OUT "$tmp[0]\t$tmp[1]\t.\tN\t<$fields{SVTYPE}>\t.\t$fields{FILTER}\t$fields{PRECISION};". join(";", @Arr) . "\tGT:CN\t./.:.\n";
         # Todo: filter duplications
@@ -91,6 +91,7 @@ sub parse {
 
     #chr10	112595625	.	N	<DUP>	.	PASS	IMPRECISE;END=112595736;SVTYPE=DUP;SVLEN=111;EV=RD;REGIONS=1
     my @tmp = split (/;/, $t[7]);
+
     my %hash = (
         PRECISION => $tmp[0],
         END => "END=" . fetchPattern("END", \@tmp),
@@ -147,7 +148,7 @@ sub annotIntronPseudogene {
         my $olap_A;
         my $olap_B;
 
-        # Minimum reciprocal overlap of 0.9 
+        # Minimum reciprocal overlap of 0.9
         # Case1: coord fits within intron
         #A          ////////////   cnv (start, end)
         #B        ^^^^^^^^^^^^^^^^ intron (st, ed)
@@ -181,7 +182,7 @@ sub annotIntronPseudogene {
             $found = 1;
             last;
         }
-    }  
+    }
     return $found;
 }
 

@@ -4,7 +4,7 @@ package Normalize;
 
 use strict;
 use Getopt::Long;
-use File::Basename; 
+use File::Basename;
 use Data::Dumper;
 use Parallel::ForkManager;
 use Sort::Key::Natural qw(natsort);
@@ -79,7 +79,7 @@ use Sort::Key::Natural qw(natsort);
 
 			# 2. Normalizing scaled-Counts by GC
 			if ( ( isChrX($chr) ) && (exists $::GC{$sample}{$gc_interval}{MEDIAN_X} ) ) {
-				$hashOfRegion->{$coordinate}->{ $sample }->{GC_NORM} = sprintf "%.3f", ( $hashOfRegion->{$coordinate}->{ $sample }{LIBNORM}*($::sample{$sample}{MEDIANCOUNTS}/$::GC{$sample}{$gc_interval}{MEDIAN_X}));		
+				$hashOfRegion->{$coordinate}->{ $sample }->{GC_NORM} = sprintf "%.3f", ( $hashOfRegion->{$coordinate}->{ $sample }{LIBNORM}*($::sample{$sample}{MEDIANCOUNTS}/$::GC{$sample}{$gc_interval}{MEDIAN_X}));
 			}
 			elsif  ( (!isChrX($chr)) && (exists $::GC{$sample}{$gc_interval}{MEDIAN} ) ) {
 				$hashOfRegion->{$coordinate}->{ $sample }->{GC_NORM} = sprintf "%.3f", ( $hashOfRegion->{$coordinate}->{ $sample }{LIBNORM}*($::sample{$sample}{MEDIANCOUNTS}/$::GC{$sample}{$gc_interval}{MEDIAN}));
@@ -118,7 +118,7 @@ use Sort::Key::Natural qw(natsort);
 
 	# Temporal file for plotting purposes
 	my $biasInfo = "$outputDir/bias_info.txt";
-	
+
 	open (TMP, ">", $biasInfo) || die " ERROR: Cannot open $biasInfo\n";
 	open (CORRECTED, ">", $::HoF{NORM_COUNTS_ON}) || die " ERROR: Cannot open $::HoF{NORM_COUNTS_ON}\n";
 
@@ -177,12 +177,12 @@ use Sort::Key::Natural qw(natsort);
  ##########################
  # Re-normalizing for single-exon calling purpose
  sub normalizePerBase {
-  
+
    my $outputDir = shift;
 
    print " INFO: Normalizing per base coverage\n";
 
-   # Now for Coverage	
+   # Now for Coverage
    my $coverageFile        = "$outputDir/$::outName.Coverages.bed.gz";
    my $outNormLibCoverages = "$outputDir/$::outName.norm_bylib_coverage.bed";
    my $normalizedCoverage =  "$outputDir/$::outName.NormalizedCoverage.bed";
@@ -211,7 +211,7 @@ use Sort::Key::Natural qw(natsort);
 
 					$tmp[$i] = 1 if $tmp[$i] == 0;
 					$coordinate = join ("\t", @tmp[0..3]);
-			
+
 					# Normalized Coverage
 					my $normalized;
 					if ( isChrX($tmp[0]) ) {
@@ -299,7 +299,7 @@ use Sort::Key::Natural qw(natsort);
 		}
 		$count++;
 	}
-   
+
 	#unlink( "$outputDir/Sorted_GC_coverages.bed" );
 
 	# Applying normalization
@@ -319,7 +319,7 @@ use Sort::Key::Natural qw(natsort);
 				$gc_interval = $i;
 				last;
 			}
-		}		
+		}
 		#print "$line\t$gc_interval\n";
 
 		my $str;
@@ -340,7 +340,7 @@ use Sort::Key::Natural qw(natsort);
 			$str.= "\t$gc_norm";
 			$n++;
 		}
-		print OUT  join("\t", @tmp[0..4]) . $str . "\n";	
+		print OUT  join("\t", @tmp[0..4]) . $str . "\n";
 	   }
 	   Utils::compressFile($normalizedCoverage);
 	   Utils::compressFile($outNormLibCoverages);
@@ -369,27 +369,27 @@ use Sort::Key::Natural qw(natsort);
  ############################################################################################################
 
  sub readRawDepth {
-	
+
 	my $outputDir = shift;
 	my $hashOfRegion = shift;
 	my $type = shift;
 
 	# Input Raw read counts and coverages
- 	my $countFile;	
+ 	my $countFile;
 	my $mappabilityFile;
 
-	if ($type eq 'ontarget') {					
-	 	$countFile       = "$outputDir/$::outName.ReadCounts.bed.gz";	
-		$mappabilityFile = "$outputDir/mappability_ontarget.bed";	
-	}								
-	if ($type eq 'offtarget') {	
+	if ($type eq 'ontarget') {
+	 	$countFile       = "$outputDir/$::outName.ReadCounts.bed.gz";
+		$mappabilityFile = "$outputDir/mappability_ontarget.bed";
+	}
+	if ($type eq 'offtarget') {
 	 	$countFile       = "$outputDir/$::outName.ReadCounts.joint.bed.gz";
 		$mappabilityFile = "$outputDir/mappability_offtarget.bed";
-	}			
+	}
 
-	# add mappability to %::ExonFeatures 
+	# add mappability to %::ExonFeatures
 	readMappability($mappabilityFile);
-		
+
 	# Output-> normalized counts/covs by library size
 	#my $outNormLibCounts    = "$outputDir/$::outName.norm_bylib_counts.bed";
 
@@ -397,7 +397,7 @@ use Sort::Key::Natural qw(natsort);
 	#open (NORMLIBCOUNTS, ">", $outNormLibCounts) || die " ERROR: Cannot open $outNormLibCounts\n";
 
 	# Regions not meeting a minimum creteria of GC content, mappability and length are filtered and annotated in this file
-	open (FILTERED, ">", "$outputDir/filtered_regions.txt") || die " ERROR: Cannot open $outputDir/filtered_regions.txt\n"; 
+	open (FILTERED, ">", "$outputDir/filtered_regions.txt") || die " ERROR: Cannot open $outputDir/filtered_regions.txt\n";
 	print FILTERED "chr\tstart\tend\tinfo\tavg_coverage\t\%gc\t\%mappability\n";
 
 	if (!-e $countFile) {
@@ -478,16 +478,16 @@ use Sort::Key::Natural qw(natsort);
 						last;
 					}
 				}
-				if ($type eq 'offtarget') {												
+				if ($type eq 'offtarget') {
 					if ($::ExonFeatures{$coord}{MAP} < 50 ) {
-						$::filteredRois{$coord}++;			
-						print FILTERED "$coordinate\t$avg_coverage\t$gc\t$::ExonFeatures{$coord}{MAP}\tLOW_MAPPABILITY\t$length\n";			
-						$flag = 1;												
-						delete ($hashOfRegion->{$coordinate});									
-						last;													
-					}														
-				}															
-					
+						$::filteredRois{$coord}++;
+						print FILTERED "$coordinate\t$avg_coverage\t$gc\t$::ExonFeatures{$coord}{MAP}\tLOW_MAPPABILITY\t$length\n";
+						$flag = 1;
+						delete ($hashOfRegion->{$coordinate});
+						last;
+					}
+				}
+
 				# Raw Counts will be stored inside this global hash
 				$hashOfRegion->{$coordinate}->{ $sample }{RAW} = $raw_counts;
 
@@ -537,7 +537,7 @@ use Sort::Key::Natural qw(natsort);
 					if ( isChrX($chr) ) {
 						push @{$::GC{$sample}{$gc_int}{ARR_COUNTS_X}}, $libnormalized;
 						$::ExonFeatures{$coordinate}{GC_INTERVAL} = $gc_int;
-					}	
+					}
 					else {
 						push @{$::ExonLength{$length}{ARR_COUNTS}}, $libnormalized;
 						$::ExonFeatures{$coordinate}{LENGTH_INTERVAL} = $length;
@@ -556,6 +556,7 @@ use Sort::Key::Natural qw(natsort);
 	#close NORMLIBCOUNTS;
  }
 
+########################
  sub readOfftargetFile {
 
 	 my $countFile = shift;
@@ -572,13 +573,17 @@ use Sort::Key::Natural qw(natsort);
 	 	chomp $line;
 		push @tmpFile, $line;
 
+    #chr1	17515720	18351813	pdwindow_21	50.577	99.160	358
 		my @tmp = split (/\t/, $line);
-		my $chr = $tmp[0];
+		my $chr    = $tmp[0];
 		my $start  = $tmp[1];
 		my $end    = $tmp[2];
 		my $info   = $tmp[3];
-		my $counts = $tmp[6];
-		my $gc_int = int ($tmp[4]*100) +1;
+		# my $counts = $tmp[6];
+		my $gc_int = int ($tmp[4])+1;
+    my $counts = $tmp[6];
+		#my $gc_int = $tmp[5] < 1 ? int($tmp[5]*100)+1 : int($tmp[5])+1;
+
 		my $coordinate = "$chr\t$start\t$end\t$info";
 
 		if ( isChrX($chr) ) {
@@ -591,7 +596,7 @@ use Sort::Key::Natural qw(natsort);
 		if ( $::GC{$sample}{$gc_int} ) {
 			if ( isChrX($chr) ) {
 				push @{$::GC{$sample}{$gc_int}{ARR_COUNTS_X}}, $counts;
-			} 
+			}
 			else {
 				push @{$::GC{$sample}{$gc_int}{ARR_COUNTS}}, $counts;
 			}
@@ -599,7 +604,7 @@ use Sort::Key::Natural qw(natsort);
 	}
 	close FILE;
 
-	$::sampleHash{$sample}{OFFTARGETMEDIAN} = Utils::medianArray(@addCounts);
+	$::sampleHash{$sample}{OFFTARGETMEDIAN}  = Utils::medianArray(@addCounts);
 	$::sampleHash{$sample}{OFFTARGETMEDIANX} = Utils::medianArray(@addCountsX);
 
 	return @tmpFile;
@@ -607,7 +612,7 @@ use Sort::Key::Natural qw(natsort);
 
 ##########################
  sub joinBins {
-	
+
 	my $inputFile = shift;
 	my $outputDir = shift;
 
@@ -655,7 +660,7 @@ use Sort::Key::Natural qw(natsort);
 			$::GC{$sample}{$i}{MEDIAN_COUNTS}  = undef;
 			$::GC{$sample}{$i}{ARR_COUNTS_X}   = undef;
 			$::GC{$sample}{$i}{MEDIAN_COUNTS_X}= undef;
-		}	
+		}
 
 		my $countFile = "$offtargetDir/$sample.offtarget_joined_counts.bed.gz";
 
@@ -679,14 +684,17 @@ use Sort::Key::Natural qw(natsort);
 		open OUT, ">", "$offtargetDir/$sample.normalized.bed";
 		foreach my $line (@tmpFile) {
 			chomp $line;
-			#chr1	578745	771659	pdwindow_4;piece_1	0.417414	26.1383443952743	275
-			my @tmp = split (/\t/, $line);
-			my $chr    = $tmp[0];
-			my $start  = $tmp[1];
-			my $end    = $tmp[2];
-			my $info   = $tmp[3];
-			my $counts = $tmp[6];
-			my $gc_int = int ($tmp[4]*100) +1;
+      next if $line =~/^#/;
+      #chr1	15767226	16617035	pdwindow_19	49.588	98.020	598
+			my @tmp     = split (/\t/, $line);
+			my $chr     = $tmp[0];
+			my $start   = $tmp[1];
+			my $end     = $tmp[2];
+			my $info    = $tmp[3];
+      my $gc_int  = int($tmp[4])+1;
+      my $map_int = int($tmp[5])+1;
+			my $counts  = $tmp[6];
+      #my $counts = $tmp[4];
 			my $normGC;
 			if ( $::GC{$sample}{$gc_int} ) {
 				if ( isChrX($chr) ) {
@@ -707,6 +715,7 @@ use Sort::Key::Natural qw(natsort);
 					}
 					push @normCounts, $normGC;
 				}
+        #print "printing $chr\t$start\t$end\t$info\t$tmp[4]\t$tmp[5]\t$counts\t$normGC\n";
 				print OUT "$chr\t$start\t$end\t$info\t$tmp[4]\t$tmp[5]\t$counts\t$normGC\n";
 			}
 		}
@@ -716,13 +725,13 @@ use Sort::Key::Natural qw(natsort);
 
 		@normCounts = ();
 		@normCountsX = ();
-          
-        joinBins("$offtargetDir/$sample.normalized.bed", $offtargetDir);
 
-		unlink "$offtargetDir/$sample.normalized.bed.gz";
+    joinBins("$offtargetDir/$sample.normalized.bed", $offtargetDir);
+
+		unlink "$offtargetDir/$sample.normalized.bed.gz" if -e "$offtargetDir/$sample.normalized.bed.gz";
 
 		rename "$offtargetDir/$sample.normalized.joined.bed", "$offtargetDir/$sample.normalized.bed";
-	    Utils::compressFile("$offtargetDir/$sample.normalized.bed");
+	  Utils::compressFile("$offtargetDir/$sample.normalized.bed");
 	}
  }
 

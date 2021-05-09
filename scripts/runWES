@@ -33,7 +33,7 @@ use WES::VCF;
 use WES::vcf2HTML;
 use WES::VAF;
 use WES::Reference;
-use WES::QC;
+use WES::Report;
 
 #use WES::LOH;
 use Misc::Utils;
@@ -45,16 +45,16 @@ our $grapesBreak = "$dirname/../bin/grapes_sv/GRAPES";
 # TargetDepth is a tool for extracting coverage, gc and insert sizes
 our $targetDepth = "$dirname/../bin/TargetDepth/targetDepth.pl";
 
-# ReportPDF will be deprecated soon for HTML report.
-our $reportExe = "$dirname/createReport.pl"; 
+# DEPRECATED
+our $reportExe = "$dirname/createReport.pl";
 
 # Tool for counting offtarget reads
 our $offtargetExtractor = "$dirname/../bin/offtarget/extractOfftarget";
 
-# Megadepth fast coverage extraction 
+# Megadepth fast coverage extraction
 our $megadepth = "$dirname/../bin/megadepth/megadepth";
 
-# R script for calling single exon CNVs 
+# R script for calling single exon CNVs
 our $analyzeSingleExonR = "$dirname/../scripts/analyzeSingleExon.R";
 
 our $AnnFeat         = "$dirname/../bin/AnnFeat/AnnFeat";
@@ -64,26 +64,28 @@ our $getMapOntarget  = "$dirname/ontargetMap.pl";
 our $mergeSegments   = "$dirname/mergeSegments.pl";
 our $mergeCnvBreaks  = "$dirname/mergeCnvBreaks.pl";
 our $excludeRegions  = "$dirname/../db/centromeres.nochr.bed";
-our $gencodeList     = "$dirname/../db/gencode.v27/gencode.v27lift37.annotation.gff3.gz";
+#our $gencodeList     = "$dirname/../db/gencode.v27/gencode.v27lift37.annotation.gff3.gz";
 our $geneList        = "$dirname/../db/hg19_geneList.txt.gz";
 our $sqliteDir       = "$dirname/../db/sqlite";
-our $gnomADvcf		 = "$dirname/../db/gnomad/gnomad_v2.1_sv.sites.vcf.gz";
+our $gnomADvcf		   = "$dirname/../db/gnomad/gnomad_v2.1_sv.sites.vcf.gz";
 
 our $devNull         = ">/dev/null 2>&1";
 our $devNullStderr   = "2> /dev/null";
-our $version = "v0.9.5";
+our $version         = "v0.9.5";
 
-our $tabix = `which tabix`; 
+our $tabix = `which tabix`;
 chomp $tabix;
 if (!$tabix) {
-	print " ERROR: tabix was not found on PATH\n"; exit;
+	print " ERROR: tabix was not found on PATH\n";
+	exit;
 }
 
-our $bgzip = `which bgzip`; 
+our $bgzip = `which bgzip`;
 chomp $bgzip;
 
 if (!$bgzip) {
-	print " ERROR: bgzip was not found on PATH\n"; exit;
+	print " ERROR: bgzip was not found on PATH\n";
+	exit;
 }
 
 our $cat  = `which cat`;
@@ -111,7 +113,7 @@ our $zcat  = `which zcat`;
 chomp $zcat;
 if (!$zcat) {
 	print " ERROR: zcat command not found\n";
-	exit;	
+	exit;
 }
 
 our $cut  = `which cut`;
@@ -125,7 +127,7 @@ our $awk  = `which awk`;
 chomp $awk;
 if (!$awk) {
 	print "ERROR: awk command not found\n";
-	exit;	
+	exit;
 }
 our $grep;
 our $sort;
@@ -138,7 +140,7 @@ else {
 	$sort = `which sort`; chomp $sort;
 }
 
-our $zgrep = `which zgrep`; 
+our $zgrep = `which zgrep`;
 chomp $zgrep;
 if (!$zgrep) {
 	print "ERROR: zgrep command not found\n";
@@ -169,7 +171,7 @@ if (!$bedtools) {
 else {
     $bedtools_version = `$bedtools --version | $cut -d \" \" -f 2 | $awk '{ split (\$0, a, \".\");  print a[2] }'`;
     chomp $bedtools_version;
-	if ($bedtools_version < 19) { 
+		if ($bedtools_version < 19) {
     	print " ERROR: BEDtools version $bedtools_version is too old. Please, consider installing the newest version\n"; exit;
     }
 }
@@ -180,7 +182,7 @@ chomp $samtools;
 our $samtools_version;
 if (!$samtools) {
 	print "ERROR: samtools command not found\n";
-	exit;	
+	exit;
 }
 else {
 	$samtools_version = `$samtools --version | $cut -d \" \" -f 2 | $head -1`;
@@ -191,7 +193,7 @@ our $bcftools  = `which bcftools`;
 chomp $bcftools;
 if (!$bcftools) {
 	print "ERROR: bcftools command not found\n";
-	exit;	
+	exit;
 }
 
 our $freebayes = `which freebayes`;
@@ -229,7 +231,7 @@ if (!$uniq) {
 	print "ERROR: uniq command not found\n";
 	exit;
 }
- 
+
 our $mv  = `which mv`;
 chomp $mv;
 if (!$mv) {
@@ -284,6 +286,7 @@ our $minOfftargetReads = 150000;
 our $minOfftargetSD = 0.2;
 our $PCAvariance = 0.7;
 my $normalizationMethod = "median";
+my $help = "";
 
 # Params for breakpoint analysis
 our $minDiscordants = 5;
@@ -311,7 +314,7 @@ my  $useControlDir  = "";
 my  $doAll          = "";
 our $doCaseControl  = 0;
 our $doPooled       = 1;
-
+our $genomeVersion = "";
 my $refDir       = "";
 my $noBreakpoint = "";
 my $noOfftarget  = "";
@@ -341,7 +344,7 @@ our %IntronFeatures = ();
 # Saving ROIs that are filetered
 our %filteredRois = ();
 
-# Here we will display sample name as key, 
+# Here we will display sample name as key,
 our %sampleHash = ();
 
 # Here we will store information from references that come from the database
@@ -375,7 +378,7 @@ our %analysisJson  = ();
 Help () if (@ARGV<1 or !GetOptions(
 
 	# For pooled analysis
-	'pooled=s'=>\$input, 
+	'pooled=s'=>\$input,
 
 	# For test-control paired analysis
 	'cases=s'   =>\$cases,
@@ -384,20 +387,22 @@ Help () if (@ARGV<1 or !GetOptions(
 	'outdir|o=s'=>\$outDir,
 	'genome|g=s'=>\$genome,
 	'bed|b=s'=>\$bed,
-    'threads|t=i'=>\$threads,
+  'threads|t=i'=>\$threads,
 	'all' =>\$doAll,
+	'help|h' =>\$help,
+	'genome_version|r=s'=>\$genomeVersion,
 
 	# Breakpoint analysis
-	'breakpoint'     =>\$doBreakpoint,
-	'breakreads'  =>\$minBreakReads,
+	'breakpoint'        =>\$doBreakpoint,
+	'breakreads'        =>\$minBreakReads,
 	'mindiscordantssd=i'=>\$minDiscordantsSD,
-    'mindiscordants=i' =>\$minDiscordants,
-	'filterdiscordantonly' =>\$filterDiscordantOnly,
+  'mindiscordants=i'  =>\$minDiscordants,
+	'filterdiscordantonly'=>\$filterDiscordantOnly,
 
-	# Other options 
-	'refdir=s'     =>\$refDir, 
+	# Other options
+	'refdir=s'     =>\$refDir,
 	'extract'      =>\$doExtraction,
-	'offtarget'    =>\$doOfftarget,	
+	'offtarget'    =>\$doOfftarget,
 	'buildref'     =>\$buildReference,
 	'usecontroldir'=>\$useControlDir,
 	'normalize=s'  =>\$doNormalization,
@@ -405,7 +410,7 @@ Help () if (@ARGV<1 or !GetOptions(
 	'plotscatter'  =>\$plotScatter,
 	'plotkaryotype'=>\$plotKaryotype,
 	'plotbiases'   =>\$plotBiases,
-	'plotsingleexon' =>\$plotSingleExon,
+	'plotsingleexon'=>\$plotSingleExon,
 	'plotlargecnv' =>\$plotLargeCNV,
 	'filtervcf'    =>\$doFilter,
 	'annotate'	   =>\$doAnnotate,
@@ -417,12 +422,12 @@ Help () if (@ARGV<1 or !GetOptions(
 	'nobreakpoint'=>\$noBreakpoint,
 	'nofilterdiscordantonly'=>\$noFilterDiscordantOnly,
 	'noofftarget' =>\$noOfftarget,
-	'novaf'       =>\$noVaf,   
-	'nocallcnv'   =>\$noCallCNV, 
-	'noscatter'   =>\$noPlotScatter, 
-	'noplotcnv'   =>\$noPlotCNV, 
-	'noannotate'  =>\$noAnnotate, 
-	'nofilter'    =>\$noFilter, 
+	'novaf'       =>\$noVaf,
+	'nocallcnv'   =>\$noCallCNV,
+	'noscatter'   =>\$noPlotScatter,
+	'noplotcnv'   =>\$noPlotCNV,
+	'noannotate'  =>\$noAnnotate,
+	'nofilter'    =>\$noFilter,
 	'noreporthtml'=>\$noReportHTML,
 	'minzscore=f' =>\$minZscore,
 	'mincorr=f'=>\$minCorrelation,
@@ -436,17 +441,21 @@ Help () if (@ARGV<1 or !GetOptions(
 	'lowerdelcutoff=f'      =>\$lowerDelCutoff,
 	'upperdelcutoff=f'      =>\$upperDelCutoff,
 	'lowerdupcutoff=f'      =>\$lowerDupCutoff,
-	'maxsvsize=i' 			=>\$maxSizeSV,
+	'maxsvsize=i' 			    =>\$maxSizeSV,
 	'minsvsize=i'           =>\$minSizeSV,
 	'verbose'               =>\$verbose,
 	)
 );
+if ($help) {
+	Help();
+}
 
 if ($PCAvariance > 1 || $PCAvariance < 0) {
 	print " ERROR: --PCAvariance must be between 0 and 1\n";
 	exit;
 }
 
+$genomeVersion  = "hg19" if !$genomeVersion;
 $lowerDelCutoff = 0.35 if !$lowerDelCutoff;
 $upperDelCutoff = 0.70 if !$upperDelCutoff;
 $lowerDupCutoff = 1.30 if !$lowerDupCutoff;
@@ -515,7 +524,7 @@ $minZscore  = 2.58 if !$minZscore;
  if ($doSamtools || $doFreebayes) {
 	$doVAF = 1;
  }
- 
+
  if ($noBreakpoint) {
 	 $doBreakpoint = 0;
  }
@@ -562,7 +571,6 @@ $minZscore  = 2.58 if !$minZscore;
  our $chrFile;
 
  # Main outDir
- mkdir "$outDir/SHORT_INTRONS";
  mkdir "$outDir/SEGMENT_DATA";
  mkdir "$outDir/PLOT_DATA";
  mkdir "$outDir/BAF_DATA";
@@ -584,40 +592,41 @@ $minZscore  = 2.58 if !$minZscore;
  # global hash of files
  our %HoF = (
 	CORRELATIONS_ON  => "$ontargetDir/$::outName.cor_corrected.txt", # File that stores pairwise read depth sample correlations
-    COUNTS_ON        => "$ontargetDir/$::outName.ReadCounts.bed", # Master file with read counts for all samples
-    COVERAGES_ON     => "$ontargetDir/$::outName.Coverages.bed", # Master file with per base coverages for all samples
+  COUNTS_ON        => "$ontargetDir/$::outName.ReadCounts.bed", # Master file with read counts for all samples
+  COVERAGES_ON     => "$ontargetDir/$::outName.Coverages.bed", # Master file with per base coverages for all samples
 	NORM_COUNTS_ON   => "$ontargetDir/$::outName.NormalizedCounts.bed", # Master file with normalized counts for all samples
-    NORM_COVERAGE_ON => "$ontargetDir/$::outName.NormalizedCoverage.bed", # Master file with normalized coverages for all samples
+  NORM_COVERAGE_ON => "$ontargetDir/$::outName.NormalizedCoverage.bed", # Master file with normalized coverages for all samples
 	MERGED_NORM_COV  => "$ontargetDir/$::outName.MergedNormalizedCounts.bed", # Merged normalized counts of NORM_COUNTS_ON and database
-    RATIOS_ON        => "$ontargetDir/$::outName.Ratios.bed", # Master file with sample roi ratios for all samples
+  RATIOS_ON        => "$ontargetDir/$::outName.Ratios.bed", # Master file with sample roi ratios for all samples
 	REFERENCES       => "$ontargetDir/$::outName.references.txt", # File with created references
 	FILTERED_ON      => "$ontargetDir/filtered_regions.txt", # Filtered regions due to low mappability, gc.
 	EXPORTED_DB      => "$ontargetDir/References.sqlite.txt", # Database exported in .txt temporary file
 	JSON             => "$outDir/$::outName.GRAPES.json",  # json that stores sample copy ratios for visualization/exploration purposes
+	ALL_CALLS        => "$outDir/allCNV.xlsx",
  );
 
- # Defining SQLite-related variables   
+ # Defining SQLite-related variables
  our $roiName  = basename($::bed) if $::bed;
  $roiName =~s/.bed// if $roiName;
- our $driver   = "SQLite"; 
+ our $driver   = "SQLite";
  our $userid   = "";
- our $password = ""; 
+ our $password = "";
  our $database;
  if ( $refDir) {
 	 if (!-e $refDir) {
 		 mkdir $refDir;
-	 } 
+	 }
 	 $database = $refDir . "/" . $roiName . ".db";
 	 if (!-e $database) {
 		 print " WARNING: $database doest not exist\n";
-	 } 
- } 
+	 }
+ }
  else {
 	 $database = $::sqliteDir . "/" . $roiName . ".db";
- } 
+ }
 
  our $dsn = "DBI:$driver:dbname=$database";
- our $dbh = DBI->connect($::dsn, $::userid, $::password, 
+ our $dbh = DBI->connect($::dsn, $::userid, $::password,
  { RaiseError => 1,
     AutoCommit => 0 # By setting autocommit to 0 we speed up the insertion process
  })
@@ -647,7 +656,7 @@ $minZscore  = 2.58 if !$minZscore;
 
 	# If controls is a list of bams
 	if ( -f $controls ) {
-		open (IN, "<", $controls) || die " ERROR: Cannot open $controls\n";	
+		open (IN, "<", $controls) || die " ERROR: Cannot open $controls\n";
 		while (my $line=<IN>) {
 			chomp $line;
 			my @tmp = split (/\t/, $line);
@@ -663,7 +672,7 @@ $minZscore  = 2.58 if !$minZscore;
 	foreach my $bam (@controlBams) {
 		if ($samtools_version > 1.5) {
 			# From samtools specs: By default quickcheck will emit a warning message if and only if a file fails the checks,
-			my $quickCheck = `$samtools quickcheck $bam`; 
+			my $quickCheck = `$samtools quickcheck $bam`;
 			chomp $quickCheck;
 			if ($quickCheck) {
 				print " ERROR: $bam is truncated\n";
@@ -684,7 +693,7 @@ $minZscore  = 2.58 if !$minZscore;
 
 	# If cases is a list of bams
 	if ( -f $cases ) {
-		open (IN, "<", $cases) || die " ERROR: Cannot open $cases\n";	
+		open (IN, "<", $cases) || die " ERROR: Cannot open $cases\n";
 		while (my $line=<IN>) {
 			chomp $line;
 			my @tmp = split (/\t/, $line);
@@ -699,7 +708,7 @@ $minZscore  = 2.58 if !$minZscore;
 	foreach my $bam (@caseBams) {
 		if ($samtools_version > 1.5) {
 			# From samtools specs: By default quickcheck will emit a warning message if and only if a file fails the checks,
-			my $quickCheck = `$samtools quickcheck $bam`; 
+			my $quickCheck = `$samtools quickcheck $bam`;
 			chomp $quickCheck;
 			if ($quickCheck) {
 				print " ERROR: $bam is truncated\n";
@@ -716,7 +725,7 @@ $minZscore  = 2.58 if !$minZscore;
 	@bams = (@controlBams, @caseBams);
 	if (!@bams) {
 		print " ERROR: no input bams were introduced\n";
-		exit;	
+		exit;
 	}
 	$input = "$outDir/input_bam_list.txt";
 	open (IN, ">", $input) || die " ERROR: Unable to open $input\n";
@@ -740,7 +749,7 @@ $minZscore  = 2.58 if !$minZscore;
 			}
 			elsif ($samtools_version > 1.5) {
 				# From samtools specs: By default quickcheck will emit a warning message if and only if a file fails the checks,
-				my $quickCheck = `$samtools quickcheck $bam`; 
+				my $quickCheck = `$samtools quickcheck $bam`;
 				chomp $quickCheck;
 				if ($quickCheck) {
 					print " ERROR: $bam is truncated\n";
@@ -754,15 +763,15 @@ $minZscore  = 2.58 if !$minZscore;
 			$sampleHash{$sampleName}{CASE} = 1;
 			$sampleHash{$sampleName}{CONTROL} = 0;
 		}
-	}	
+	}
 	# If multiple BAMs on command line
 	@multiple = split (",", $input);
 	if (@multiple > 1) {
-		@bams = @multiple;	
+		@bams = @multiple;
 	}
 	# If input is a list of bams
 	if ( -f $input ) {
-		open (IN, "<$input") || die " ERROR: Cannot open $input\n";	
+		open (IN, "<$input") || die " ERROR: Cannot open $input\n";
 		while (my $line=<IN>) {
 			chomp $line;
 			my @tmp = split (/\t/, $line);
@@ -799,15 +808,15 @@ $minZscore  = 2.58 if !$minZscore;
  #     GOAL: Find exons that are very close (<200bp)                 #
  #####################################################################
  #if ($analysisMode eq 'gene-panel' && $doExtraction) {
-	#if ( !-e "$outDir/SHORT_INTRONS/mappability_intronic.bed") { 
-		#print YELLOW "\n INTRON ANALYSIS\n", RESET;  
+	#if ( !-e "$outDir/SHORT_INTRONS/mappability_intronic.bed") {
+		#print YELLOW "\n INTRON ANALYSIS\n", RESET;
 		#print " INFO: Extracting short (<200bp) intronic sequences\n";
 		#Intron::Analyze();
 	#}
  #}
 
  ###################################################
- #    Initializing sample and a GC global hashes   # 
+ #    Initializing sample and a GC global hashes   #
  ###################################################
  my $i = 0;
  foreach my $bam( @bams ) {
@@ -832,7 +841,7 @@ $minZscore  = 2.58 if !$minZscore;
 	   $GC{$sampleName}{$i}{ARR_COV_X}      = undef;
 	   $GC{$sampleName}{$i}{MEDIAN_COV_X}   = undef;
 	}
-  
+
 	# Initializing Sample hash
 	$sampleHash{$sampleName}{PATH} = $bam;
 	$sampleHash{$sampleName}{ROI}         = ".";
@@ -840,35 +849,41 @@ $minZscore  = 2.58 if !$minZscore;
 	$sampleHash{$sampleName}{MEANCOV}     = ".";
 	$sampleHash{$sampleName}{MEDIANCOUNTS}= ".";
 	$sampleHash{$sampleName}{ARR_COUNTS}  = ".";
-	if ($doOfftarget){ 
+	if ($doOfftarget){
 		$sampleHash{$sampleName}{PERFORM_OFFTARGET} = "YES";
 	}
 	else{
 		$sampleHash{$sampleName}{PERFORM_OFFTARGET} = "NO";
-	}  
+	}
 	$sampleHash{$sampleName}{ONTARGET_QC_PASS}  = ".";
-	$sampleHash{$sampleName}{OFFTARGET_QC_PASS} = "."; 
-	
+	$sampleHash{$sampleName}{OFFTARGET_QC_PASS} = ".";
+
 	# ChromosomeX
 	$sampleHash{$sampleName}{MEANCOVX}    = ".";
 	$sampleHash{$sampleName}{MEANCOUNTSX} = ".";
 	$sampleHash{$sampleName}{TOTALREADS_ONTARGET_X} = ".";
 	$sampleHash{$sampleName}{TOTALREADS_OFFTARGET_X} = ".";
+
+	# Other metrics
 	$sampleHash{$sampleName}{N_CALL}         = 0;
 	$sampleHash{$sampleName}{N_NO_CALL}      = 0;
 	$sampleHash{$sampleName}{TOTALREADS}     = undef;
 	$sampleHash{$sampleName}{READSONTARGET}  = ".";
-	$sampleHash{$sampleName}{READSOFFTARGET} = ".";				
+	$sampleHash{$sampleName}{READSOFFTARGET} = ".";
 	$sampleHash{$sampleName}{MEANISIZE}      = ".";
 	$sampleHash{$sampleName}{SDISIZE}        = ".";
-	$sampleHash{$sampleName}{OFFTARGETBIN}   = 15000;	
+	$sampleHash{$sampleName}{OFFTARGETBIN}   = 15000;
 	$sampleHash{$sampleName}{OFFTARGETMEDIAN}= ".";
-	$sampleHash{$sampleName}{SNPVCF}         = "$input/$sampleName.vcf" if $input;
-    $sampleHash{$sampleName}{BAF_ONTARGET}   = "$outDir/BAF_DATA/$sampleName.baf_segment.bed";
-    $sampleHash{$sampleName}{BAF_OFFTARGET}  = "$outDir/BAF_DATA/$sampleName.baf_segment.bed";
-    $sampleHash{$sampleName}{BAF}            = "$outDir/BAF_DATA/$sampleName.baf_segment.bed";
-	$sampleHash{$sampleName}{CNVBED}         = "$outDir/$sampleName.CNV.bed";
 
+	# Output files
+	$sampleHash{$sampleName}{SNPVCF}         = "$input/$sampleName.vcf" if $input;
+  $sampleHash{$sampleName}{BAF_ONTARGET}   = "$outDir/BAF_DATA/$sampleName.baf_segment.bed";
+  $sampleHash{$sampleName}{BAF_OFFTARGET}  = "$outDir/BAF_DATA/$sampleName.baf_segment.bed";
+  $sampleHash{$sampleName}{BAF}            = "$outDir/BAF_DATA/$sampleName.baf_segment.bed";
+	$sampleHash{$sampleName}{CNV_BED}        = "$outDir/$sampleName.CNV.bed";
+	$sampleHash{$sampleName}{CNV_VCF}        = "$outDir/$sampleName.CNV.vcf";
+	$sampleHash{$sampleName}{READY_VCF}      = "$outDir/$sampleName.CNV.vcf";
+	$sampleHash{$sampleName}{ANNOT_VCF}      = "$outDir/$sampleName.CNV.annotated.vcf";
 	$i++;
  }
 
@@ -877,7 +892,7 @@ $minZscore  = 2.58 if !$minZscore;
  #########################
  if ($doBreakpoint) {
 
-  	 print YELLOW "\n Breakpoint SV analysis\n", RESET;  
+   print YELLOW "\n Breakpoint SV analysis\n", RESET;
 
 	 foreach my $bam( @bams ) {
 
@@ -890,7 +905,7 @@ $minZscore  = 2.58 if !$minZscore;
 		my $samplePath  = $bam;
 		$sampleName=~s/.bam//;
 
-		#my $pid = $pm -> start() and next; 
+		#my $pid = $pm -> start() and next;
 		#if (!-e "$outDir/ON_TARGET/$sampleName/$sampleName.breakpoints.vcf") {
 			print " INFO: Analyzing breakpoints from sample $sampleName\n";
 			Breakpoint::AnalyzeWES($bam, $genome, $outDir, $sampleName, 3, 10, 3);
@@ -911,14 +926,14 @@ $minZscore  = 2.58 if !$minZscore;
  ################################################################
 
 if ( readDepthIsInvolved() ) {
-	print YELLOW "\n Read Depth Analysis\n", RESET;  
+	print YELLOW "\n Read Depth Analysis\n", RESET;
 }
  if ($doExtraction) {
 
  	print " INFO: Extracting on-target mappability\n";
  	Extract::getMappability($bed, "ontarget", $ontargetDir, \%ontargetHash);
 
-	if ( ( ($analysisMode eq 'exome') && ( !-e "$ontargetDir/$outName.ReadCounts.bed" && !-e "$ontargetDir/$outName.ReadCounts.bed.gz" ) ) 
+	if ( ( ($analysisMode eq 'exome') && ( !-e "$ontargetDir/$outName.ReadCounts.bed" && !-e "$ontargetDir/$outName.ReadCounts.bed.gz" ) )
 		|| ($analysisMode eq 'gene-panel' && !-e "$ontargetDir/$outName.ReadCounts.bed.gz" && !-e "$ontargetDir/$outName.Coverages.bed.gz") ) {
 
 		print " INFO: Extracting on-target read depth\n";
@@ -947,14 +962,14 @@ if ( readDepthIsInvolved() ) {
 	if ($doOfftarget) {
 
 		print " INFO: Creating off-target bins\n";
-		Offtarget::preProcess($bed, $outDir, $offtargetDir); 
+		Offtarget::preProcess($bed, $outDir, $offtargetDir);
 
 		# Removing outlier peaks using MACS2
-		Offtarget::removePeaks($bed, $outDir, $offtargetDir); 
-		
+		Offtarget::removePeaks($bed, $outDir, $offtargetDir);
+
 		# Creating sample-specific bins
-		Offtarget::createBins($bed, $outDir, $offtargetDir); 
-		
+		Offtarget::createBins($bed, $outDir, $offtargetDir);
+
 		# Extract off-target reads counts
 		Extract::extractOfftargetCounts($offtargetDir);
 	}
@@ -979,7 +994,7 @@ foreach my $sample ( sort keys %sampleHash ) {
 
 	my @arrStr = split (/\t/, $str);
 
-	$sampleHash{$sample}{TOTALREADS}   			= $arrStr[1];
+	$sampleHash{$sample}{TOTALREADS}   			    = $arrStr[1];
 	$sampleHash{$sample}{READSONTARGET}         = $arrStr[2];
 	$sampleHash{$sample}{TOTALREADS_ONTARGET_X} = $arrStr[3];
 	$sampleHash{$sample}{ROI_ONTARGET}          = $arrStr[4];
@@ -1002,7 +1017,7 @@ foreach my $sample ( sort keys %sampleHash ) {
 
  if ($doNormalization) {
 
-	# On-target data 
+	# On-target data
 	if ($normalizationMethod eq 'median') {
 		print " INFO: Normalizing on-target\n";
 		Normalize::normalizeOntarget($ontargetDir, $analysisMode, "ontarget", \%ontargetHash);
@@ -1041,34 +1056,35 @@ foreach my $sample ( sort keys %sampleHash ) {
 
 	# Off-target data analysis
 	if ($doOfftarget) {
-		
+
 		# Normalized off-target data by GC
 		print " INFO: Normalizing off-target\n";
-		Normalize::normalizeOfftarget($offtargetDir);			
+		Normalize::normalizeOfftarget($offtargetDir);
 
-		# Render scatterplot only if ratios are available
+		# Create scatterplot
 		if ( $plotScatter && -e "$offtargetDir/$outName.Ratios.bed" && !$doCalling ) {
 			print " INFO: Plotting genome-wide off-target data\n";
 			Plot::plotScatter($offtargetDir, $analysisMode, "off-target");
 		}
 	}
  }
- 
+
  if ($doCalling) {
-	
+
 	print " INFO: Building references\n";
 	Reference::clusterBatches();
 
-	Ratio::calculateOnTargetRatios($ontargetDir, "ontarget");
+	print " INFO: Calculating on-target ratio\n";
+	Ratio::calculateOnTargetRatios( $ontargetDir );
 
-	print " INFO: Segmenting ratios\n";
+	print " INFO: Segmenting on-target data\n";
 	Segment::CBS($ontargetDir, "on-target", $analysisMode);
-	
+
 	########################################
 	#	Importing VCFs  to calculate VAF   #
 	########################################
 
-	# DEPRECATED MARCH '21 
+	# DEPRECATED MARCH '21
 	# if ($doVAF) {
 	# 	foreach my $sample ( sort keys %sampleHash ) {
 
@@ -1091,7 +1107,7 @@ foreach my $sample ( sort keys %sampleHash ) {
 	# 				}
 	# 			}
 	# 		}
-	# 		$pm->finish; 
+	# 		$pm->finish;
 	# 	}
 	# 	$pm->wait_all_children;
 	# #Todo: some sort of validation function for calls with Germline/Somatic tags
@@ -1099,22 +1115,24 @@ foreach my $sample ( sort keys %sampleHash ) {
 	# }
 
 	print " INFO: Calling on-target CNVs\n";
-	CallCNV::call($ontargetDir, $analysisMode, "on-target", $bed, "$ontargetDir/$outName.Ratios.bed.gz");
-	
+	CallCNV::call($ontargetDir, $analysisMode, "on-target", $bed,
+		"$ontargetDir/$outName.Ratios.bed.gz");
+
 	if ( $plotScatter ) {
-		print " INFO: Plotting genomewide on-target data\n";
+		print " INFO: Plotting genome-wide on-target data\n";
 		Plot::plotScatter($ontargetDir, $analysisMode, "on-target");
 	}
 
 	if ( $doOfftarget ) {
-
+		print " INFO: Calculating off-target ratio\n";
 		Ratio::calculateRatioOfftarget($offtargetDir);
 
-		print " INFO: Segmenting off-target\n";
+		print " INFO: Segmenting off-target data\n";
 		Segment::CBS($offtargetDir, "off-target", $analysisMode);
 
 		print " INFO: Calling off-target CNVs\n";
-		CallCNV::call($offtargetDir, $analysisMode, "off-target", $off_bed, "$offtargetDir/$outName.Ratios.bed.gz");
+		CallCNV::call($offtargetDir, $analysisMode, "off-target", $off_bed,
+			"$offtargetDir/$outName.Ratios.bed.gz");
 
 		if ( $plotScatter ) {
 			print " INFO: Plotting genome-wide off-target data\n";
@@ -1134,63 +1152,85 @@ foreach my $sample ( sort keys %sampleHash ) {
 		print " INFO: Calling on+off-target CNVs\n";
 		CallCNV::call($outDir, $analysisMode, "mixed", "None", "None");
 	}
-	else{
+	else {
 		if ( $plotScatter ) {
-			print " INFO: Plotting genomewide on+off-target data\n";
+			print " INFO: Plotting genome-wide on-target data\n";
 			Plot::plotScatter($outDir, $analysisMode, "off-target");
 		}
-	} 
+	}
 	# Outputting on-, off-, and mixed CNV calls at main output folder (outDir)
 	# Todo: UNify CNVs calls when there exists overlap between on and off-target.
 	mergeOnOfftargetCalls();
- } 
+ }
 
 # Annotate VAF SNV information
 if ($doVAF){
-	print " INFO: Adding VAF annotations\n";
+	print " INFO: Adding VAF information\n";
 	foreach my $sample ( sort keys %sampleHash ) {
-		next if -z $sampleHash{$sample}{CNVBED};
-		VAF::annotateSnvVAF($sampleHash{$sample}{PATH}, $outDir, $sample, $sampleHash{$sample}{CNVBED});
-	}	
-} 
+		next if -z $sampleHash{$sample}{CNV_BED};
+		VAF::annotateSnvVAF($sampleHash{$sample}{PATH}, $outDir, $sample, $sampleHash{$sample}{CNV_BED});
+	}
+}
 
 print " INFO: Generating VCFs\n";
-# Generate VCF 
+# Generate VCF
 foreach my $sample ( sort keys %sampleHash ) {
 	next if $sampleHash{$sample}{CONTROL};
-	VCF::generate("$outDir/ON_TARGET/$sample.CNV.bed") if -e "$outDir/ON_TARGET/$sample.CNV.bed";
+	VCF::generate("$outDir/ON_TARGET/$sample.CNV.bed", $sampleHash{$sample}{PATH}, $sample )
+		if -e "$outDir/ON_TARGET/$sample.CNV.bed";
 	#VCF::generate("$outDir/OFF_TARGET/$sample.CNV.bed");
-	VCF::generate("$outDir/$sample.CNV.bed") if -e "$outDir/$sample.CNV.bed";
+	VCF::generate("$outDir/$sample.CNV.bed", $sampleHash{$sample}{PATH}, $sample)
+		if -e "$outDir/$sample.CNV.bed";
 }
 
 # Annotate filtering tags
 if ($doFilter) {
-	print " INFO: Applying filter tags to VCFs\n";
+
+	print " INFO: Adding filter tags to VCFs\n";
 	foreach my $sample ( sort keys %sampleHash ) {
+
 		next if $sampleHash{$sample}{CONTROL};
-		HardFilter::filter("$outDir/ON_TARGET/$sample.CNV.vcf") if -e "$outDir/ON_TARGET/$sample.CNV.vcf";
-		HardFilter::filter("$outDir/$sample.CNV.vcf") if -e "$outDir/$sample.CNV.vcf";
+		HardFilter::filter("$outDir/ON_TARGET/$sample.CNV.vcf")
+			if -e "$outDir/ON_TARGET/$sample.CNV.vcf";
+		HardFilter::filter("$outDir/$sample.CNV.vcf")
+			if -e "$outDir/$sample.CNV.vcf";
 	}
 }
 
 # Annotate gnomAD
 if ($doAnnotate) {
-	print " INFO: Annotating VCFs with gnomAD\n";
+	print " INFO: Annotating VCFs\n";
 	foreach my $sample ( sort keys %sampleHash ) {
+
+		# Skipp annotation if the sample is a control (only occurs on case-control workflow)
 		next if $sampleHash{$sample}{CONTROL};
-		Annotate::doAnnotation("$outDir/$sample.CNV.vcf", $outDir, 0.5) if -e "$outDir/$sample.CNV.vcf";
-		Annotate::doAnnotation("$outDir/ON_TARGET/$sample.CNV.vcf", $outDir, 0.5) if -e "$outDir/ON_TARGET/$sample.CNV.vcf";
+
+		Annotate::doAnnotation("$outDir/$sample.CNV.vcf", $outDir, 0.5)
+			if -e "$outDir/$sample.CNV.vcf";
+
+		Annotate::doAnnotation("$outDir/ON_TARGET/$sample.CNV.vcf", "$outDir/ON_TARGET/", 0.5)
+			if -e "$outDir/ON_TARGET/$sample.CNV.vcf";
+
+		# Reassign ready vcf
+		$sampleHash{$sample}{READY_VCF} = $sampleHash{$sample}{ANNOT_VCF};
 	}
 }
 
 filterRoisByAnnotation($HoF{FILTERED_ON});
-QC::writeSampleQC($outDir);
-QC::writeRoiQC($outDir);
+
+# Write a sample QC
+Report::writeSampleQC( $outDir );
+
+# Write an XLSX with information at ROI level
+Report::writeRoiQC( $outDir );
+
+# Write a unified file in XLSX with all CNV calls
+Report::exportCnvXLS();
 
 # Creating HTML report for gene-panels.
 if ( $createReport ) {
-	print " INFO: Generating HTML report\n";
-	#vcf2HTML::createHTMLreport();	
+	#print " INFO: Generating HTML report\n";
+	#vcf2HTML::createHTMLreport();
 }
 
 my $json = JSON::MaybeXS->new(utf8 => 1, pretty => 1, sort_by => 1);
@@ -1202,25 +1242,26 @@ close OUTJSON;
 
 $dbh->disconnect();
 
+
 ###############################
 sub filterRoisByAnnotation {
 
 	my $filterRoiFile = shift;
-	open (IN, "<", $filterRoiFile)|| die " ERROR: Unable to open $filterRoiFile\n";  
+	open (IN, "<", $filterRoiFile)|| die " ERROR: Unable to open $filterRoiFile\n";
 	while (my $line=<IN>) {
 		chomp $line;
 		my @tmp = split ("\t", $line);
 		my $coord = "$tmp[0]\t$tmp[1]\t$tmp[2]";
 		$::filteredRois{$coord}++;
 	}
-	close IN; 
-} 
+	close IN;
+}
 
 ###############################
 sub mergeOnOfftargetCalls {
 
 	# Goal is to merge into a single file (at $outDir/) all calls made from at ON_TARGET, OFF_TARGET and mixed calls
-    foreach my $sample ( sort keys %sampleHash ) {
+  foreach my $sample ( sort keys %sampleHash ) {
 		my $onTargetFile = "$outDir/ON_TARGET/$sample.CNV.bed";
 		my $offTargetFile= "$outDir/OFF_TARGET/$sample.CNV.bed";
 		my $mixedFile    = "$outDir/$sample.CNV.bed";
@@ -1234,11 +1275,11 @@ sub mergeOnOfftargetCalls {
 		system $cmd if @files;
 
 		unlink($mixedFile);
-		rename "$outDir/$sample.CNV.tmp.bed", $mixedFile if -e "$outDir/$sample.CNV.tmp.bed";
+		rename "$outDir/$sample.CNV.tmp.bed", $mixedFile;
 	}
 }
 
-###################
+################### DEPRECATED
 sub autoSetNormalizationMethod {
 	my $default = shift;
 	# This functions sets the type of normalization given the total number of samples available:
@@ -1264,7 +1305,7 @@ sub checkChrFormat {
  my $bam = shift;
  my $str = `$samtools view -H $bam | $grep 'SN'`;
  chomp $str;
- 
+
  my $mapFile;
  my $centromerFile;
  my $hasChr;
@@ -1272,94 +1313,143 @@ sub checkChrFormat {
  my @tmpStr = split (/\t/, $str);
  my $sn = $tmpStr[1];
  my $assembly = $tmpStr[4];
+
  if ($sn =~/chr/) {
-	$hasChr = "yes";
-	if ($assembly =~/GRCh38/ || $assembly =~/hg38/) {
-		$mapFile = "$dirname/../mappability/GRCh38.mappability.100mer.bedGraph.gz";
-		if (!-e $mapFile) {
-			print " ERROR: $mapFile was not found\n"; exit;
-		}
-		$centromerFile = "$dirname/../db/centromeres.hg38.chr.bed";
-		if (!-e $centromerFile) {
-			print " ERROR: $centromerFile was not found\n"; exit;
-		}
-		$chrFile  = "$dirname/../db/hg38.chr.sort.txt";
-		if (!-e $chrFile) {
-			print " ERROR: $chrFile was not found\n"; exit;
-		}
-		$genomePatches = "$dirname/../db/Patches_grch37_v13.chr.txt";
-		if (!-e $genomePatches) {
-			print " ERROR: $genomePatches was not found\n"; exit;
-		}
-		$intronFile = "$dirname/../db/hg19.ucsc.introns.chr.bed.gz";
-	}
-	else  {
-		$mapFile = "$dirname/../mappability/wgEncodeCrgMapabilityAlign100mer.chr.bedgraph.gz";
-		if (!-e $mapFile) {
-			print " ERROR: $mapFile was not found\n"; exit;
-		}
-		$centromerFile = "$dirname/../db/centromeres.chr.bed";
-		if (!-e $centromerFile) {
-			print " ERROR: $centromerFile was not found\n"; exit;
-		}
-		$chrFile  = "$dirname/../db/hg19.chr.sort.txt";
-		if (!-e $chrFile) {
-			print " ERROR: $chrFile was not found\n"; exit;
-		}
-		$genomePatches = "$dirname/../db/Patches_grch37_v13.chr.txt";
-		if (!-e $genomePatches) {
-			print " ERROR: $genomePatches was not found\n"; exit;
-		}
-		$intronFile = "$dirname/../db/hg19.ucsc.introns.chr.bed.gz";
-	}
- }
- else {
-	$hasChr = "no";
-	if ($assembly =~/GRCh38/ || $assembly =~/hg38/) {
-		$mapFile = "$dirname/../mappability/GRCh38.mappability.100mer.bedGraph.gz";
-		if (!-e $mapFile) {
-			print " ERROR: $mapFile was not found\n"; exit;
-		}
-		$centromerFile = "$dirname/../db/centromeres.hg38.chr.bed";
-		if (!-e $centromerFile) {
-			print " ERROR: $centromerFile was not found\n"; exit;
-		}
-		$chrFile  = "$dirname/../db/hg38.chr.sort.txt";
-		if (!-e $chrFile) {
-			print " ERROR: $chrFile was not found\n"; exit;
-		}
-		$genomePatches = "$dirname/../db/Patches_grch37_v13.txt";
-		if (!-e $genomePatches) {
-			print " ERROR: $genomePatches was not found\n"; exit;
-		}
-		$intronFile = "$dirname/../db/hg19.ucsc.introns.nochr.bed.gz";
-	}
-	else {
-		$mapFile = "$dirname/../mappability/wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz";
-		if (!-e $mapFile) {
-			print " ERROR: $mapFile was not found\n"; exit;
-		}
-		$centromerFile = "$dirname/../db/centromeres.nochr.bed";
-		if (!-e $centromerFile) {
-			print " ERROR: $centromerFile was not found\n"; exit;
-		}
-		$chrFile  = "$dirname/../db/hg19.nochr.txt";
-		if (!-e $chrFile) {
-			print " ERROR: $chrFile was not found\n"; exit;
-		}
-		$genomePatches = "$dirname/../db/Patches_grch37_v13.txt";
-		if (!-e $genomePatches) {
-			print " ERROR: $genomePatches was not found\n"; exit;
-		}
-		$intronFile = "$dirname/../db/hg19.ucsc.introns.nochr.bed.gz";
-	}
+	 $hasChr = 1;
  }
 
- $str = `$cat $chrFile`;
+ if ($genomeVersion eq 'hg38' || $assembly =~/GRCh38/i || $assembly =~/hg38/i) {
+	 $mapFile = "$dirname/../mappability/GRCh38.mappability.100mer.bedGraph.gz";
+	 if (!-e $mapFile) {
+		 print " ERROR: $mapFile was not found\n"; exit;
+	 }
+	 $centromerFile = "$dirname/../db/centromeres.hg38.chr.bed";
+	 if (!-e $centromerFile) {
+		 print " ERROR: $centromerFile was not found\n"; exit;
+	 }
+	 $chrFile  = "$dirname/../db/hg38.chr.sort.txt";
+	 if (!-e $chrFile) {
+		 print " ERROR: $chrFile was not found\n"; exit;
+	 }
+	 $genomePatches = "$dirname/../db/Patches_grch37_v13.chr.txt";
+	 if (!-e $genomePatches) {
+		 print " ERROR: $genomePatches was not found\n"; exit;
+	 }
+	 $intronFile = "$dirname/../db/hg19.ucsc.introns.chr.bed.gz";
+ }
+ if ($genomeVersion eq 'hg19' || $assembly =~/GRCh37/i || $assembly =~/hg37/i) {
+ 	$mapFile = "$dirname/../mappability/wgEncodeCrgMapabilityAlign100mer.chr.bedgraph.gz";
+ 	if (!-e $mapFile) {
+ 		print " ERROR: $mapFile was not found\n"; exit;
+ 	}
+ 	$centromerFile = "$dirname/../db/centromeres.chr.bed";
+ 	if (!-e $centromerFile) {
+ 		print " ERROR: $centromerFile was not found\n"; exit;
+ 	}
+ 	$chrFile  = "$dirname/../db/hg19.chr.sort.txt";
+ 	if (!-e $chrFile) {
+ 		print " ERROR: $chrFile was not found\n"; exit;
+ 	}
+ 	$genomePatches = "$dirname/../db/Patches_grch37_v13.chr.txt";
+ 	if (!-e $genomePatches) {
+ 		print " ERROR: $genomePatches was not found\n"; exit;
+ 	}
+ 	$intronFile = "$dirname/../db/hg19.ucsc.introns.chr.bed.gz";
+ }
+
+ # if ($sn =~/chr/) {
+	# $hasChr = "yes";
+	# if ($genomeVersion eq 'hg38' || $assembly =~/GRCh38/i || $assembly =~/hg38/i) {
+	# 	$mapFile = "$dirname/../mappability/GRCh38.mappability.100mer.bedGraph.gz";
+	# 	if (!-e $mapFile) {
+	# 		print " ERROR: $mapFile was not found\n"; exit;
+	# 	}
+	# 	$centromerFile = "$dirname/../db/centromeres.hg38.chr.bed";
+	# 	if (!-e $centromerFile) {
+	# 		print " ERROR: $centromerFile was not found\n"; exit;
+	# 	}
+	# 	$chrFile  = "$dirname/../db/hg38.chr.sort.txt";
+	# 	if (!-e $chrFile) {
+	# 		print " ERROR: $chrFile was not found\n"; exit;
+	# 	}
+	# 	$genomePatches = "$dirname/../db/Patches_grch37_v13.chr.txt";
+	# 	if (!-e $genomePatches) {
+	# 		print " ERROR: $genomePatches was not found\n"; exit;
+	# 	}
+	# 	$intronFile = "$dirname/../db/hg19.ucsc.introns.chr.bed.gz";
+	# }
+	# else  {
+	# 	$mapFile = "$dirname/../mappability/wgEncodeCrgMapabilityAlign100mer.chr.bedgraph.gz";
+	# 	if (!-e $mapFile) {
+	# 		print " ERROR: $mapFile was not found\n"; exit;
+	# 	}
+	# 	$centromerFile = "$dirname/../db/centromeres.chr.bed";
+	# 	if (!-e $centromerFile) {
+	# 		print " ERROR: $centromerFile was not found\n"; exit;
+	# 	}
+	# 	$chrFile  = "$dirname/../db/hg19.chr.sort.txt";
+	# 	if (!-e $chrFile) {
+	# 		print " ERROR: $chrFile was not found\n"; exit;
+	# 	}
+	# 	$genomePatches = "$dirname/../db/Patches_grch37_v13.chr.txt";
+	# 	if (!-e $genomePatches) {
+	# 		print " ERROR: $genomePatches was not found\n"; exit;
+	# 	}
+	# 	$intronFile = "$dirname/../db/hg19.ucsc.introns.chr.bed.gz";
+	# }
+ # }
+ # else {
+	# $hasChr = "no";
+	# if ($assembly =~/GRCh38/ || $assembly =~/hg38/) {
+	# 	$mapFile = "$dirname/../mappability/GRCh38.mappability.100mer.bedGraph.gz";
+	# 	if (!-e $mapFile) {
+	# 		print " ERROR: $mapFile was not found\n"; exit;
+	# 	}
+	# 	$centromerFile = "$dirname/../db/centromeres.hg38.chr.bed";
+	# 	if (!-e $centromerFile) {
+	# 		print " ERROR: $centromerFile was not found\n"; exit;
+	# 	}
+	# 	$chrFile  = "$dirname/../db/hg38.chr.sort.txt";
+	# 	if (!-e $chrFile) {
+	# 		print " ERROR: $chrFile was not found\n"; exit;
+	# 	}
+	# 	$genomePatches = "$dirname/../db/Patches_grch37_v13.txt";
+	# 	if (!-e $genomePatches) {
+	# 		print " ERROR: $genomePatches was not found\n"; exit;
+	# 	}
+	# 	$intronFile = "$dirname/../db/hg19.ucsc.introns.nochr.bed.gz";
+	# }
+	# else {
+	# 	$mapFile = "$dirname/../mappability/wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz";
+	# 	if (!-e $mapFile) {
+	# 		print " ERROR: $mapFile was not found\n"; exit;
+	# 	}
+	# 	$centromerFile = "$dirname/../db/centromeres.nochr.bed";
+	# 	if (!-e $centromerFile) {
+	# 		print " ERROR: $centromerFile was not found\n"; exit;
+	# 	}
+	# 	$chrFile  = "$dirname/../db/hg19.nochr.txt";
+	# 	if (!-e $chrFile) {
+	# 		print " ERROR: $chrFile was not found\n"; exit;
+	# 	}
+	# 	$genomePatches = "$dirname/../db/Patches_grch37_v13.txt";
+	# 	if (!-e $genomePatches) {
+	# 		print " ERROR: $genomePatches was not found\n"; exit;
+	# 	}
+	# 	$intronFile = "$dirname/../db/hg19.ucsc.introns.nochr.bed.gz";
+	# }
+ # }
+
+ if ($hasChr) {
+	 $str = `$cat $chrFile`;
+ }
+ else {
+	 $str = `$cat $chrFile | perl -e -p \"s/chr//\"`;
+ }
  chomp $str;
  @tmpStr = split (/\n/, $str);
  %ChromosomeLengths = map {  (split /\t/,  $tmpStr[$_])[0] => (split /\t/, $tmpStr[$_])[1] } 0..$#tmpStr;
- 
+
  foreach my $chr ( keys %ChromosomeLengths)	{
 	$genomeLength+=$ChromosomeLengths{$chr};
  }
@@ -1394,41 +1484,71 @@ sub readDepthIsInvolved {
 		return 0;
 	}
 }
-###############################
-sub useControls {
 
-}
 ###############################
 sub Help {
-	print "\n
-Usage:  ./GRAPES wes <command> [OPTIONS] 
-Command:
-	all	           Perform all steps below
-	breakpoint     Perform Breakpoint analysis
-	extract        Extract Depth, GC and Mappability percentages
-	build-ref      Build a reference from a pool of samples
-	useControlDir  Create a baseline from a control set
-	normalize      Normalize samples
-	callCNV        Perform Copy Ratio and segmentation
-	plotBiases	   Plot read depth bias reduction before and after normalization
-	plotScatter    Plot genome-wide cnv scatter plot
-	reportPDF	   Write results on a PDF (Only for gene panels)
 
+	print "\n   Description: Call CNV/SVs on targeted sequencing data\n";
+	print "   Usage: ./GRAPES wes [required_params] [Options] [Other_params]\n\n";
+  print BOLD GREEN "   Workflows:" , RESET, "\n";
+	print"   Pooled analysis:
+   GRAPES wes --pooled <bam_dir> --outdir <output_dir> --bed <roi> --genome <genome_fa> --all
 
-Params:
-	-i		STRING	 Input BAM/s. Can be a file with a list of BAMs.
-	-o		STRING   Output directory.
-	-g		STRING	 Genome reference in FASTA format.
-	-b		STRING	 BED regions
-	-t		INT	     Number of CPUs	
-	-minCorrelation	 Minimum pairwise-correlation to build a reference set (default = 0.90)
-	-minSampleSizeCluster	Minimum pairwise-correlation to build a reference set (default = 15)
-	-maxSampleSizeCluster	Minimum pairwise-correlation to build a reference set (default = 4)
-	-lowerDelCutoff	Lower-bound deletion cuttof ratio (default = 0.35)
-	-upperDelCutoff	Upper-bound deletion cuttof ratio (default = 0.62)
-	-lowerDupCutoff	Lower-bound duplication cuttof ratio (default = 1.299)
-	-minSizeSV	Minimum SV size to report a breakpoint call (default = 15)\n\n";
+   Case-control analysis:
+   GRAPES wes --cases <bam_dir> --control <bam_dir> --outdir <output_dir> --bed <roi> --genome <genome_fa> --all\n\n";
+
+  print BOLD GREEN "   I/O" , RESET, "\n";
+	print "   -o,--outdir	 STRING	  Output directory
+   -g,--genome	 STRING   Genome reference in FASTA format
+   -b,--bed 	 STRING	  Regions file in BED format
+   -t,--threads	 INT	  Number of CPUs (default = 1)\n\n";
+
+  print BOLD GREEN "   Options" , RESET, "\n";
+	print "   --all	              Perform all steps below
+   --refdir                   Input directory where DB references will be stored.
+   --breakpoint	              Perform Breakpoint analysis
+     --nobreakpoint	      Turn off breakpoint analysis
+   --extract	              Extract Depth, GC and Mappability
+   --offtarget	              Perform Off-target analysis
+     --noofftarget	      Turn off offtarget analysis
+   --buildref	              Build a reference from a pool of samples
+   --callcnv	              Perform ratio and CBS segmentation
+     --nocallcnv	      Turn off CNV calling
+   --normalize	              Normalize read depth. Choose from 'median', 'PCA'. (default='median')
+   --plotsingleexon	      Plot single exon CNVs
+     --noplotcnv	      Turn off CNV plotting
+   --plotlargecnv	      Plot segmented CNVs
+     --noplotcnv	      Turn off CNV plotting
+   --plotscatter	      Plot genome-wide CNV scatter plot
+   --vaf	              Include Variant-Allele Frequency (VAF) analysis
+     --novaf	              Turn off VAF analysis
+   --samtools	              Default if --vaf set. Perform variant call with samtools
+   --freebayes	              if --vaf set, perform variant call with freebayes
+   --annotate	              Annotate VCF
+     --noannotate	      Turn off VCF annotation
+   --filtervcf	              Filter low qual VCF entries
+     --nofiltervcf	      Turn off VCF filtering
+   --reporthtml	              Write results to an HTML file (Only for gene panels)
+     --noreporthtml	      Turn off report HTML creation
+   --filterdiscordantonly     Filter discordant-only SV predictions (default = true)
+     --nofilterdiscordantonly Turn off discordant-pair only filtering
+   --verbose	              Print sub-command messages\n\n";
+
+  print BOLD GREEN "   Parameters" , RESET, "\n";
+	print "   --mincorr            FLOAT     Minimum sample correlation to build a reference set (default = 0.92)
+   --minrefsize         INT       Minimum number of samples to build a single baseline (default = 2)
+   --maxrefsize         INT       Maximum number of samples to build a single baseline (default = 15)
+   --minzscore          FLOAT     Minimum Z-score required to output a CNV prediction (default = 2.58)
+   --minpcavariance     FLOAT     Minimum variance to remove when normalizing by PCA (default = 0.7)
+   --lowerdelcutoff     FLOAT     Lower-bound deletion cutoff ratio (default = 0.35)
+   --upperdelcutoff     FLOAT     Upper-bound deletion cutoff ratio (default = 0.70)
+   --lowerdupcutoff     FLOAT     Lower-bound duplication cutoff ratio (default = 1.30)
+   --minofftargetreads  INT       Minimum number of offtarget reads required to trigger off-target analysis (default = 1e6)
+   --minofftargetsd     FLOAT     Minimum number of std.dev from off-target rartios trigger off-target analysis	(default = 0.2)
+   --minsvsize          INT       Minimum SV size (in bp) to report a breakpoint call (default = 15)
+   --maxsvsize          INT       Maximum SV size (in bp) to report a breakpoint call (default = 5e6)
+   --mindiscordants     INT       Minimum number of discordant read pairs (default = 5)
+   --mindiscordantssd   INT       Minimum insert size std.deviations to define discordant pairs (default = 10)
+   --breakreads         INT       Minimum number of break reads (default = 5)\n\n";
  exit;
 }
-
-

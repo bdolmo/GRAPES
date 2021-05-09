@@ -2,7 +2,7 @@
 
 package Utils;
 use strict;
-use File::Basename; 
+use File::Basename;
 use Statistics::Descriptive;
 use Sort::Key::Natural qw(natsort);
 use Scalar::Util qw(looks_like_number);
@@ -14,7 +14,7 @@ sub loadSingleExon2Json {
 	my $dataFile    = shift;
 	my $coordinates = shift;
 	my $sample      = shift;
-	
+
 	$::analysisJson{$sample}{Calls}{$coordinates}{Plot_type} = "Single_exon";
 	open (IN, "<", $dataFile) || die " ERROR: Unable to open $dataFile\n";
 	while (my $line=<IN>) {
@@ -22,7 +22,7 @@ sub loadSingleExon2Json {
 		my @tmp = split (/\t/, $line);
 
 		my $sampleName = $tmp[4];
-		push @{$::analysisJson{$sample}{Calls}{$coordinates}{$sampleName}{Ratios}}, $tmp[5]; 
+		push @{$::analysisJson{$sample}{Calls}{$coordinates}{$sampleName}{Ratios}}, $tmp[5];
 	}
 	close IN;
 }
@@ -42,7 +42,7 @@ sub loadShortPLot2Json {
 		#print OUT "$tmp[0]\t$tmp[1]\t$tmp[2]\t$tmp[3]\t$sample_value\t2_$sampName\n";
 		my @sampleTmp = split("_", $tmp[5]);
 		my $sampleName = $sampleTmp[1];
-		push @{$::analysisJson{$sample}{Calls}{$coordinates}{$sampleName}{Ratios}}, $tmp[4]; 
+		push @{$::analysisJson{$sample}{Calls}{$coordinates}{$sampleName}{Ratios}}, $tmp[4];
 	}
 	close IN;
 }
@@ -61,7 +61,7 @@ sub loadLongPlot2Json {
 		my $sampleName = $tmp[4];
 		#chr2	30142807	30143575	chr2:30142808-30143575	20B3334.rmdup	1.78528	-0.271	control
 		#chr9	136291319	136291320	NM_139025.4_5_6;ADAMTS13	RB18972_9999999.rmdup	0.903041825095057	RB18972_9999999.rmdup
-		push @{$::analysisJson{$sample}{Calls}{$coordinates}{$sampleName}{Ratios}}, $tmp[5]; 
+		push @{$::analysisJson{$sample}{Calls}{$coordinates}{$sampleName}{Ratios}}, $tmp[5];
 	}
 	close IN;
 }
@@ -99,7 +99,7 @@ sub populateMapGcHashFromNormCountsOfftarget {
 sub populateMapGcHashFromNormCountsOntarget {
 
 	my $infile = shift;
-	if ($infile =~/.gz/) { 
+	if ($infile =~/.gz/) {
 		open (IN, "$::zcat $infile |") || die " ERROR: Unable to open $infile\n";
 	}
 	else {
@@ -116,9 +116,40 @@ sub populateMapGcHashFromNormCountsOntarget {
 		$::ExonFeatures{$coordinate}{MAP} = $map;
 	}
 	close IN;
-	
+
 }
-################### 
+###################
+sub compressFileBgzip {
+
+	my $infile = shift;
+	return if $infile =~/.gz/;
+
+	my $cmd = "$::bgzip -c $infile > $infile.gz";
+	system $cmd if -s $infile;
+}
+###################
+sub tabixIndex {
+	my $infile   = shift;
+	my $filetype = shift;
+
+	if ($infile !~/.gz$/) {
+		print " ERROR: Could not index $infile. $infile is not gzipped\n";
+	}
+
+	my $cmd;
+	if ($filetype eq 'vcf') {
+		$cmd = "$::tabix -f -p vcf $infile";
+	}
+	elsif ($filetype eq 'bed') {
+		$cmd = "$::tabix -f -p bed $infile";
+	}
+	else  {
+		print " ERROR: Could not index $infile. filetype $filetype is not supported. Supported formats are: bed, vcf\n";
+	}
+	system $cmd if -s $infile;
+}
+
+###################
 # forcing -f compression/decompression
 sub decompressFile {
 
@@ -142,7 +173,7 @@ sub compressFile {
 # Taken from gendicall. Original author is Manuel Rueda, PhD
 sub number2human {
     my $number = shift;
-       if(looks_like_number($number)) { 
+       if(looks_like_number($number)) {
         $number >= 1000000 ? sprintf( "%0.2fM", $number / 1000000 )
       : $number >= 1000    ? sprintf( "%0.0fK", $number / 1000 )
       :                      $number;

@@ -4,7 +4,7 @@ package Ratio;
 
 use strict;
 use Getopt::Long;
-use File::Basename; 
+use File::Basename;
 use List::MoreUtils;
 use Statistics::Descriptive;
 use Parallel::ForkManager;
@@ -29,7 +29,7 @@ use Sort::Key::Natural qw(natsort);
 		open NORMALIZED, "$::zcat $offtargetDir/$sample.normalized.bed.gz |";
 
 		my @ratios = ();
-	 	while (my $line=<NORMALIZED>) {			
+	 	while (my $line=<NORMALIZED>) {
 			 chomp $line;
 			#chr1	578745	771659	pdwindow_4;piece_1	0.417414	26.1383443952743	275
 			my @tmp = split (/\t/, $line);
@@ -37,9 +37,10 @@ use Sort::Key::Natural qw(natsort);
 			my $start = $tmp[1];
 			my $end   = $tmp[2];
 			my $info  = $tmp[3];
+      my $mappability = $tmp[5];
+      my $gc = $tmp[4];
+
 			my $counts= $tmp[7];
-			my $mappability = $tmp[5];
-			my $ratio;
 			my $coord = "$chr\t$start\t$end";
 
 			next if $::filteredRois{$coord};
@@ -49,6 +50,7 @@ use Sort::Key::Natural qw(natsort);
 
 			# Skipping low mappability windows.
 			next if $mappability < 90;
+      my $ratio;
 
 			# Skipping low mappability windows.
 			if ( isChrX($chr) ) {
@@ -84,9 +86,9 @@ use Sort::Key::Natural qw(natsort);
  ##############################
  #	  Merging ON/OFF ratios   #
  ##############################
- sub mergeOnOffRatios {
+sub mergeOnOffRatios {
 
-	# Mergin On/Off target data for combined analysis 
+	# Mergin On/Off target data for combined analysis
 	my $ontargetDir  = shift;
 	my $offtargetDir = shift;
 
@@ -103,17 +105,17 @@ use Sort::Key::Natural qw(natsort);
 			push @ratioData, $ontargetRatios;
 			if ($::sampleHash{$sample}{OFFTARGET_SD_RATIO} < 0.2) {
 				push @ratioData, $offtargetRatios;
-			} 
+			}
 			my $cmd = "$::zcat @ratioData | $::sort -V | $::gzip > $OnOfftargetRatios\n";
 			system $cmd;
 		}
 		elsif ( !-e $ontargetRatios && -e $offtargetRatios ){
 			my $cmd = "$::zcat $offtargetRatios | $::sort -V | $::gzip > $OnOfftargetRatios\n";
-			system $cmd;			
+			system $cmd;
 		}
 		elsif ( -e $ontargetRatios && !-e $offtargetRatios ) {
 			my $cmd = "$::zcat $ontargetRatios | $::sort -V | $::gzip > $OnOfftargetRatios\n";
-			system $cmd;				
+			system $cmd;
 		}
 
 		if (-s $OnOfftargetRatios) {
@@ -128,7 +130,7 @@ use Sort::Key::Natural qw(natsort);
 				my $ratio = $tmp[4];
 				push @ratios, $ratio;
 			}
-			close IN; 
+			close IN;
 			$::sampleHash{$sample}{ONOFF_MEAN_RATIO}= Utils::meanArray(@ratios);
 			$::sampleHash{$sample}{ONOFF_SD_RATIO}  = Utils::std(@ratios);
 			@ratios = ();
@@ -143,7 +145,6 @@ use Sort::Key::Natural qw(natsort);
  sub calculateOnTargetRatios {
 
    my $inputDir= shift;
-   my $type    = shift;
 
    # Ratios will be calculated from MergedNormalizedCounts.bed file
    # that contains data from the pooled samples and the database refs.
@@ -169,7 +170,7 @@ use Sort::Key::Natural qw(natsort);
         if ($::doCaseControl) {
             next if $::sampleHash{$sample}{CONTROL};
         }
-	    
+
 		my @idx = ();
 		foreach my $element ( @{$::sampleHash{$sample}{REFERENCE}} ) {
 
@@ -226,7 +227,7 @@ use Sort::Key::Natural qw(natsort);
 		print RATIOS "chr\tstart\tend\tinfo\tGC\tmap\t$sampnames\n";
 		next;
 	}
-	
+
 	# Body section
 	my $coord = "$tmp[0]\t$tmp[1]\t$tmp[2]";
 
@@ -236,7 +237,7 @@ use Sort::Key::Natural qw(natsort);
 	my $coordinate = join "\t", @tmp[0..3];
 	print RATIOS join "\t", @tmp[0..5];
 
-	# Now calculating ratios for every sample. 
+	# Now calculating ratios for every sample.
 	my $j = 0;
 	for (my $i = 6; $i < @tmp; $i++) {
 		my $sample = @samples[$j];
@@ -261,7 +262,7 @@ use Sort::Key::Natural qw(natsort);
 		$j++;
 
 		my @tmpRefs;
-		# Calculating a baseline from the median corrected counts from each reference	
+		# Calculating a baseline from the median corrected counts from each reference
 		foreach my $idx ( @{$::sampleHash{$sample}{REF_ID}} ) {
 			push @tmpRefs, $tmp[6+$idx];
 		}
@@ -289,7 +290,7 @@ use Sort::Key::Natural qw(natsort);
    # Splitting Ratios file for segmentation and deleting outlier ratios
    foreach my $sample (	natsort keys %::sampleHash ) {
 
-	   	# Skipping database references 
+	   	# Skipping database references
 		if (exists $::referenceHash{$sample}) {
 			next;
 		}
@@ -298,7 +299,7 @@ use Sort::Key::Natural qw(natsort);
 		if ( exists $::sampleHash{$sample}{REF_ID} && @{$::sampleHash{$sample}{REF_ID}} >= 1 ) {
 
 			# Here, skipping header and selecting sample columns
-			my $cmd = "$::cat $inputDir/$::outName.Ratios.bed | $::tail -n +2 | $::cut -f 1,2,3,4,$j,$k |"; 
+			my $cmd = "$::cat $inputDir/$::outName.Ratios.bed | $::tail -n +2 | $::cut -f 1,2,3,4,$j,$k |";
 			$cmd .=  "$::awk '{if (\$4 !~/info/) { print \$0 } }' > $inputDir/$sample.ratios.txt";
 			system($cmd);
 

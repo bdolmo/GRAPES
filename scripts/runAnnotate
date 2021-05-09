@@ -33,6 +33,26 @@ if (!$head) {
 	exit;
 }
 
+our $gzip  = `which gzip`;
+chomp $gzip;
+if (!$gzip) {
+	print " ERROR: gzip command not found\n";
+	exit;
+}
+
+our $bgzip = `which bgzip`;
+chomp $bgzip;
+
+if (!$bgzip) {
+	print " ERROR: bgzip was not found on PATH\n"; exit;
+}
+
+our $tabix = `which tabix`;
+chomp $tabix;
+if (!$tabix) {
+	print " ERROR: tabix was not found on PATH\n"; exit;
+}
+
 our $zcat  = `which zcat`;
 chomp $zcat;
 if (!$zcat) {
@@ -54,7 +74,7 @@ our $awk  = `which awk`;
 chomp $awk;
 if (!$awk) {
 	print "ERROR: awk command not found\n";
-	exit;	
+	exit;
 }
 
 our $bedtools = `which bedtools`;
@@ -67,15 +87,20 @@ if (!$bedtools) {
 else {
     my $bedtools_version = `$bedtools --version | $cut -d \" \" -f 2 | $awk '{ split (\$0, a, \".\");  print a[2] }'`;
     chomp $bedtools_version;
-	if ($bedtools_version < 19) { 
+	if ($bedtools_version < 19) {
     	print " ERROR: BEDtools version $bedtools_version is too old. Please, consider installing the newest version\n"; exit;
     }
 }
 
 our $gnomADvcf	 = "$dirname/../db/gnomad/gnomad_v2.1_sv.sites.vcf.gz";
-
 if (!-e $gnomADvcf) {
     print " ERROR: $gnomADvcf not found!\n";
+    exit;
+}
+
+our $geneList    = "$dirname/../db/hg19_geneList.txt.gz";
+if (!-e $gnomADvcf) {
+    print " ERROR: $geneList not found!\n";
     exit;
 }
 
@@ -85,10 +110,10 @@ my $outDir;
 
 # Displaying usage panel
 helpAnnot () if (@ARGV<3 or !GetOptions(
-	'input_vcf=s' =>\$inputVCF,
-    'l=f' =>\$minOlap,
+	'i|input_vcf=s' =>\$inputVCF,
+  'l=f' =>\$minOlap,
 	'o=s' =>\$outDir
-    )
+  )
 );
 
 mkdir $outDir;
@@ -115,7 +140,7 @@ my $annotVCF = Annotate::doAnnotation($inputVCF, $outDir, $minOlap);
 sub helpAnnot {
 
     print"
-    Usage:  ./GRAPES annotate [OPTIONS] 
+    Usage:  ./GRAPES annotate [OPTIONS]
     Options:
     -i  STRING  Input VCF file
     -o  STRING  Output directory

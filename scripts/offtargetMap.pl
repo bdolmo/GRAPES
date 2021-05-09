@@ -44,5 +44,6 @@ while(my $line=<STDIN>) {
 foreach my $regions (sort keys %regional) {
 	my @tmp = split (/\t/, $regions);
 	#chr1	10000	16345	chr1:10000-16345	28.120215837
+	$regional{$regions} = sprintf "%.3f",$regional{$regions};
 	print "$tmp[0]\t$tmp[1]\t$tmp[2]\t$tmp[0]:$tmp[1]-$tmp[2]\t$regional{$regions}\n";
 }

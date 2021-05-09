@@ -3,13 +3,12 @@
 package Offtarget;
 use strict;
 use Getopt::Long;
-use File::Basename; 
+use File::Basename;
 use List::Util qw(min max);
 use Parallel::ForkManager;
 use Sort::Key::Natural qw(natsort);
 
 ##########################
-
 sub appendOfftargetMetrics2Summary {
 
 	my $offtargetTmp = shift;
@@ -67,33 +66,44 @@ sub appendOfftargetMetrics2Summary {
 ##########################
 sub preProcess {
 
- my $bed         = shift; 
+ my $bed         = shift;
  my $outDir      = shift;
- my $offtargetDir= shift; 
+ my $offtargetDir= shift;
 
  # Creating file with regions to be excluded (padding coding exons to get rid of residual coverage from these regions & centromere concatenation)
  my $cmd = "$::awk '{if (\$2<\$3) {print \$1\"\t\"\$2-1000\"\t\"\$3+1000\"\t\"\$4} else if (\$2>\$3) {print \$1\"\t\"\$2+1000\"\t\"\$3-1000\"\t\"\$4}}' $bed > $outDir/OFF_TARGET/ontarget_paded_400bp.bed";
  system($cmd);
 
- $cmd = "$::cat $outDir/OFF_TARGET/ontarget_paded_400bp.bed $::centromeres $::genomePatches | $::awk '\$1 !~ /_/ {print \$0}' | $::sort -V -u > $outDir/OFF_TARGET/ontarget_paded_400bp_centromers_patches.bed";
+ $cmd = "$::cat $outDir/OFF_TARGET/ontarget_paded_400bp.bed $::centromeres $::genomePatches ";
+ if (!$::hasChr) {
+	 $cmd.= " | perl -e -p \"s/chr//\" ";
+ }
+ $cmd.= " | $::awk '\$1 !~ /_/ {print \$0}' | $::sort -V -u > $outDir/OFF_TARGET/ontarget_paded_400bp_centromers_patches.bed";
  system($cmd);
 
  # Complementary file generation for the peak detection step
- $cmd = "$::bedtools complement -i $outDir/OFF_TARGET/ontarget_paded_400bp_centromers_patches.bed -g $::chrFile | $::awk '{ print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$3-\$2}' | $::awk '{if(\$4>=1) print \$1\"\t\"\$2\"\t\"\$3\"\tComplement\"}' > $outDir/OFF_TARGET/offtarget_unprocessed.bed";
+ if (!$::hasChr) {
+	$cmd = "cat $::chrFile | perl -e -p \"s/chr//\" | $::bedtools complement -i $outDir/OFF_TARGET/ontarget_paded_400bp_centromers_patches.bed -g stdin ";
+ 	$cmd.= " | $::awk '{ print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$3-\$2}' | $::awk '{if(\$4>=1) print \$1\"\t\"\$2\"\t\"\$3\"\tComplement\"}' > $outDir/OFF_TARGET/offtarget_unprocessed.bed";
+ }
+ else {
+ 	$cmd = "$::bedtools complement -i $outDir/OFF_TARGET/ontarget_paded_400bp_centromers_patches.bed -g $::chrFile ";
+	$cmd.= " | $::awk '{ print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$3-\$2}' | $::awk '{if(\$4>=1) print \$1\"\t\"\$2\"\t\"\$3\"\tComplement\"}' > $outDir/OFF_TARGET/offtarget_unprocessed.bed";
+ }
  system($cmd);
- 
+
 }
 
 ##########################
 sub removePeaks {
 
- my $bed         = shift; 
+ my $bed         = shift;
  my $outDir      = shift;
- my $offtargetDir= shift; 
+ my $offtargetDir= shift;
 
  if (-e "$offtargetDir/$::outName.MergedNarrowPeaks.bed" ) {
 	 return 1;
- }	
+ }
 
  foreach my $bam ( @::bams ) {
 
@@ -110,7 +120,7 @@ sub removePeaks {
 
 		# Get an sliced BAM from off-target regions
 		print " INFO: Processing $sample bam file\n";
-	 	my $cmd="$::samtools view -b -L $offtargetDir/offtarget_unprocessed.bed $bam > $offtargetDir/$sample.offTarget.bam";
+	 	my $cmd ="$::samtools view -b -L $offtargetDir/offtarget_unprocessed.bed $bam > $offtargetDir/$sample.offTarget.bam";
 	 	print "$cmd\n" if $::verbose;
 		system($cmd);
 
@@ -149,7 +159,7 @@ sub removePeaks {
 ##########################
 sub createBins {
 
- my $bed         = shift; 
+ my $bed         = shift;
  my $outDir      = shift;
  my $offtargetDir= shift;
 
@@ -167,7 +177,8 @@ sub createBins {
 
  # Adding some padding coordinates at each peak identified
  my $cmd = "$::cat @narrowPeaksFiles | $::sort -V -u " .
- " | $::awk '{if (\$2<\$3) {print \$1\"\t\"\$2-400\"\t\"\$3+400\"\t\"\"mergedPaddedNarrowPeaks\"} else if (\$2>\$3) {print \$1\"\t\"\$2+400\"\t\"\$3-400\"\t\"\$4\"\t\"\"mergedPaddedNarrowPeaks\"}}' - | $::grep -v '\_'> $offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed";  
+ " | $::awk '{if (\$2<\$3) {print \$1\"\t\"\$2-400\"\t\"\$3+400\"\t\"\"mergedPaddedNarrowPeaks\"} else if (\$2>\$3) {print \$1\"\t\"\$2+400\"\t\"\$3-400\"\t\"\$4\"\t\"\"mergedPaddedNarrowPeaks\"}}' - ";
+ $cmd.= " | $::grep -v '\_'> $offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed";
  system($cmd);
 
  # Deleting inconsistent coordinate entries when poiting out of the chromosome length
@@ -187,56 +198,65 @@ sub createBins {
 
  # Merging patched regions and exclusion centromere regions into a single file
  $cmd  = "$::cat $offtargetDir/$::outName.MergedNarrowPeaks.bed $::genomePatches $::centromeres";
+ if (!$::hasChr)  {
+	 $cmd.= " | perl -e -p \"s/chr//\" ";
+ }
+
  $cmd .= " | $::sort -V -u | $::awk '\$1 !~ /_/ {print \$0}' - > $offtargetDir/offtarget_centromeres_patches_peaks.bed";
  print "$cmd\n" if $::verbose;
  system($cmd);
 
  # Obtaining the complement of the previous exclusion file
- $cmd = "$::bedtools complement -i $offtargetDir/offtarget_centromeres_patches_peaks.bed -g $::chrFile";
- $cmd .= " | $::awk '{ print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$3-\$2}'";
- $cmd .= " | $::awk '{if(\$4>=1) print \$1\"\t\"\$2\"\t\"\$3}' - > $offtargetDir/offtarget_centromeres_patches_peaks_negative.bed";
+ if (!$::hasChr)  {
+	 $cmd = "$::cat $::chrFile | perl -e -p \"s/chr//\" ";
+	 $cmd.= "$::bedtools complement -i $offtargetDir/offtarget_centromeres_patches_peaks.bed -g stdin";
+ }
+ else {
+	 $cmd = "$::bedtools complement -i $offtargetDir/offtarget_centromeres_patches_peaks.bed -g $::chrFile";
+ }
+ $cmd.= " | $::awk '{ print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$3-\$2}'";
+ $cmd.= " | $::awk '{if(\$4>=1) print \$1\"\t\"\$2\"\t\"\$3}' - > $offtargetDir/offtarget_centromeres_patches_peaks_negative.bed";
  print "$cmd\n" if $::verbose;
  system($cmd);
 
 
  my @offbams = glob("$offtargetDir/*bam");
  open (TMP, ">", "$::outDir/offtarget_info.tmp.txt") || die " ERROR: Unable to open $::outDir/offtarget_info.tmp.txt\n";
- #foreach my $bam ( @offbams ) {
 
  foreach my $sample ( sort keys %::sampleHash) {
 
     my $bam = "$offtargetDir/$sample.offTarget.bam";
 
-	if (-e $bam ) {
-		#my $counts = Utils::readCountsFromBamIdx($bam);
-		my $counts = `$::samtools view -c $bam -L $offtargetDir/offtarget_centromeres_patches_peaks_negative.bed`;
-		chomp $counts;
-		
-		# Defnining offtarget window size based on this empirically derived rule. 
-		# May be worth to add a more advanced method: https://academic.oup.com/bioinformatics/article/30/13/1823/2422194
-		$::sampleHash{$sample}{OFFTARGETBIN}   = $counts > 0 ? int ( (4000000 *150000)/$counts ) : 10e6; 
-		if ($::sampleHash{$sample}{OFFTARGETBIN} < 50000) {
-			$::sampleHash{$sample}{OFFTARGETBIN} = 50000;
-		} 
+		if (-e $bam ) {
+			#my $counts = Utils::readCountsFromBamIdx($bam);
+			my $counts = `$::samtools view -c $bam -L $offtargetDir/offtarget_centromeres_patches_peaks_negative.bed`;
+			chomp $counts;
 
-		$::sampleHash{$sample}{READSOFFTARGET} = $counts;
+			# Defnining offtarget window size based on this empirically derived rule.
+			# May be worth to add a more advanced method: https://academic.oup.com/bioinformatics/article/30/13/1823/2422194
+			$::sampleHash{$sample}{OFFTARGETBIN}   = $counts > 0 ? int ( (4000000 *150000)/$counts ) : 10e6;
+			if ($::sampleHash{$sample}{OFFTARGETBIN} < 50000) {
+				$::sampleHash{$sample}{OFFTARGETBIN} = 50000;
+			}
 
-		print TMP "$sample\t$::sampleHash{$sample}{READSOFFTARGET}\t$::sampleHash{$sample}{OFFTARGETBIN}\n";
+			$::sampleHash{$sample}{READSOFFTARGET} = $counts;
 
-		my $countsHuman = Utils::number2human($counts);
-		my $binSizeHuman= Utils::number2human($::sampleHash{$sample}{OFFTARGETBIN});
+			print TMP "$sample\t$::sampleHash{$sample}{READSOFFTARGET}\t$::sampleHash{$sample}{OFFTARGETBIN}\n";
 
-		# $cmd = "$::bedtools bamtobed -i $bam | $::awk \'{ print \$1\"\t\"\$2 }\'> $offtargetDir/$sample.offtarget.coordinates.bed";
-		# system $cmd if !-e "$offtargetDir/$sample.offtarget.coordinates.bed";
+			my $countsHuman = Utils::number2human($counts);
+			my $binSizeHuman= Utils::number2human($::sampleHash{$sample}{OFFTARGETBIN});
 
-		print " INFO: $sample off-target reads: $countsHuman\toff-target bin size: $binSizeHuman\n";
-		#estimateWindowSize($offtargetDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN}, $bam);
-		my $sample_offtarget_bed = createPseudowindows($offtargetDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN});
-	}
-	else {
-		$::sampleHash{$sample}{READSOFFTARGET} = 0;
-		$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'no';
-	}
+			# $cmd = "$::bedtools bamtobed -i $bam | $::awk \'{ print \$1\"\t\"\$2 }\'> $offtargetDir/$sample.offtarget.coordinates.bed";
+			# system $cmd if !-e "$offtargetDir/$sample.offtarget.coordinates.bed";
+
+			print " INFO: $sample off-target reads: $countsHuman\toff-target bin size: $binSizeHuman\n";
+			#estimateWindowSize($offtargetDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN}, $bam);
+			my $sample_offtarget_bed = createPseudowindows($offtargetDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN});
+		}
+		else {
+			$::sampleHash{$sample}{READSOFFTARGET} = 0;
+			$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'no';
+		}
 
  }
  #$::pm->wait_all_children;
@@ -254,11 +274,12 @@ sub createBins {
  unlink("$offtargetDir/ontarget_paded_400bp_centromers_patches.bed");
  #unlink("$outDir/offtarget_centromeres_patches_peaks_negative.bed");
 }
+
 #########################
 sub estimateWindowSize {
 
 	my $outDir  = shift;
-	my $sample  = shift; 
+	my $sample  = shift;
 	my $binSize = shift;
 	my $bam     = shift;
 
@@ -279,10 +300,10 @@ sub estimateWindowSize {
 			#print "$sample\t$bin\t$bin_std\n";
 			last if $count == 10;
 
-		} 
-	} 
+		}
+	}
 
-	# Now we should get counts and produce bin-level ratios 
+	# Now we should get counts and produce bin-level ratios
 }
 
 #########################
@@ -317,29 +338,26 @@ sub caculateRatioStd {
 		}
 		my $length = $tmp[2]-$tmp[1];
 		$joinedWindows{$window_name}{COUNTS}+=$tmp[4];
-	} 
+	}
 	close IN;
 
 	#my $offCounts = "$outDir/$sample.offtarget.counts.bed";
-	my @arrCounts = (); 
+	my @arrCounts = ();
 	#open (OUT, ">", $offCounts) || die " ERROR: unable to open $offCounts\n";
 	foreach my $region (natsort keys %joinedWindows) {
 		#print OUT "$joinedWindows{$region}{CHR}\t$joinedWindows{$region}{START}\t$joinedWindows{$region}{END}\t$region\t$joinedWindows{$region}{COUNTS}\n";
-		push @arrCounts,$joinedWindows{$region}{COUNTS};  
+		push @arrCounts,$joinedWindows{$region}{COUNTS};
 	}
 	my $medianCounts = Utils::medianArray(@arrCounts);
 	#close OUT;
-	my @arrRatios = (); 
+	my @arrRatios = ();
 	foreach my $region (natsort keys %joinedWindows) {
 		my $ratio = $joinedWindows{$region}{COUNTS}/$medianCounts;
-		push @arrRatios,$ratio;  
+		push @arrRatios,$ratio;
 	}
 	my $sdRatios = Utils::MAD(@arrRatios);
 	return $sdRatios;
-} 
-
-
-
+}
 
 ##########################
 sub createPseudowindows {
@@ -347,13 +365,13 @@ sub createPseudowindows {
  #Goal here is to create a sample-specific off-target BED regions file
  #Author: Jesús Matés Ramírez, PhD.
  my $outDir  = shift;
- my $sample  = shift; 
+ my $sample  = shift;
  my $binsize = shift;
 
  my $off_bed = "$outDir/$sample.offtarget.bed";
  if (-e $off_bed) {
  	#return 1;
- } 
+ }
 
  my $inputpw  = "$outDir/offtarget_centromeres_patches_peaks_negative.bed";
  my $outputpw = "$outDir/$sample.offTarget.pseudowindowed.bed";
@@ -394,7 +412,7 @@ sub createPseudowindows {
 		$sum=$len;
 		$presum=0;
 	}
-	
+
 	if(($presum==$sum)&&($sum==$binsize)){
 		$prend=$st;
 		$presum=0;
@@ -409,13 +427,13 @@ sub createPseudowindows {
 				$newst=$st;
 				$newend=$newst+$diff;
 				$sum=$binsize;
-				
+
 				next if $newst >= $::ChromosomeLengths{$chr};
-		
+
 				if ($newend >= $::ChromosomeLengths{$chr}) {
 					$newend = $::ChromosomeLengths{$chr};
 				}
-			
+
 				print OUTPW "$chr\t$newst\t$newend\tpdwindow_$winc;piece_$cntpiece\n";
 
 				$cntpiece=1;
@@ -522,7 +540,7 @@ sub createPseudowindows {
 	}
 	$presum=$sum;
 	if($presum==$binsize){
-		$presum=0;	
+		$presum=0;
 	}
  }
  close INPW;
@@ -532,9 +550,9 @@ sub createPseudowindows {
  $cmd .= "$::awk '{if (\$1 !~/_/) { print \$0 }}' | $::awk '{if(\$3!=\$2) print \$0}' | ";
  $cmd .= "$::bedtools intersect -a stdin -b $::centromeres $::genomePatches -v | ";
  $cmd .= "$::sort -V >  $outDir/$sample.offtarget_temp_with_centromeres.bed";
- system($cmd); 
- 
- $cmd = "$::awk '{if( \$4 ~ /centromere/) { print \$1\"\t\"\$2-1000000\"\t\"\$3+1000000\"\t\"\$4 }}' $::centromeres |"; 
+ system($cmd);
+
+ $cmd = "$::awk '{if( \$4 ~ /centromere/) { print \$1\"\t\"\$2-1000000\"\t\"\$3+1000000\"\t\"\$4 }}' $::centromeres |";
  $cmd.="$::bedtools intersect -a $outDir/$sample.offtarget_temp_with_centromeres.bed -b stdin -v | $::sort -V > $off_bed";
  system $cmd;
 

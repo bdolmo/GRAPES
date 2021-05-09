@@ -4,12 +4,13 @@ package Annotate;
 
 use strict;
 use Getopt::Long;
-use File::Basename; 
+use File::Basename;
 use List::MoreUtils qw(uniq);
+use Misc::Utils;
 
 # Purpose of this module is to annotate VCF files with gnomAD database
 
-#Hardcoded default fields 
+#Hardcoded default fields
 our @popDefaults = (
     "EVIDENCE",
     "AF",
@@ -17,7 +18,7 @@ our @popDefaults = (
     "AC",
     "AFR_AC",
     "AFR_AN",
-    "AFR_AF",  
+    "AFR_AF",
     "AMR_AC",
     "AMR_AN",
     "AMR_AF",
@@ -34,16 +35,25 @@ our @popDefaults = (
 
 ################################
 sub doAnnotation {
-    
+
     my $inputVCF = shift;
     my $outDir   = shift;
     my $minOlap  = shift;
 
+    if (!-e $inputVCF) {
+      print " ERROR: missing vcf $inputVCF\n";
+      return;
+    }
+
     # Get a hash with vcf fields from gnomad
     my %headerVCF = returnVcfFields();
 
-    # Annotate with gnomAD
-    annotateGnomad($inputVCF, $outDir, $minOlap, \%headerVCF);
+    # Annotate Gene names (HUGO)
+    my $annotVCF = annotateGenes($inputVCF, $outDir);
+
+     # Annotate with gnomAD SV dataset (v2.1)
+    $annotVCF = annotateGnomad($annotVCF, $outDir, $minOlap, \%headerVCF);
+
 }
 
 ################################
@@ -52,6 +62,176 @@ sub getGenomicCode {
     my $start  = shift;
     my $end    = shift;
     my $svtype = shift;
+}
+
+################################
+sub rewriteHeader  {
+
+  my $inputVCF     = shift;
+  my $newAnnoField = shift;
+
+  my $headerStr;
+  if ( isGzipped($inputVCF) ) {
+    $headerStr = `$::zcat $inputVCF | $::head -5000 | $::grep -e '^#'`;
+  }
+  else {
+    $headerStr = `$::head -5000 $inputVCF | $::grep -e '^#'`;
+  }
+  chomp $headerStr;
+  my @tmpHeader = split("\n", $headerStr);
+
+  # Get an index of the latest INFO field
+  my $idx = 0;
+  foreach my $field (@tmpHeader)  {
+    if ($field=~/^##INFO/) {
+      last;
+    }
+    $idx++;
+  }
+  # Insert new field into last INFO position
+  splice @tmpHeader, $idx, 0, $newAnnoField;
+  my $newHeader = join("\n", @tmpHeader);
+
+  return $newHeader;
+
+}
+
+
+################################
+sub checkChrConvention  {
+
+  my $inputVCF = shift;
+  my $isChr = 0;
+  my $fieldFound = 0;
+  if ( isGzipped($inputVCF) ) {
+      open (IN, "$::zcat $inputVCF | $::head -100 |")
+          || die "ERROR: Unable to open $inputVCF\n";
+  }
+  else {
+    open (IN, "$::cat $inputVCF | $::head -100 |")
+        || die "ERROR: Unable to open $inputVCF\n";
+  }
+
+  while (my $line=<IN>) {
+    chomp $line;
+    if ($line=~/^##contig/)  {
+      $fieldFound = 1;
+      if ($line=~/chr/) {
+        $isChr = 1;
+        last;
+      }
+      else {
+        last;
+      }
+    }
+  }
+  close IN;
+
+  if (!$fieldFound) {
+    print " ERROR: Missing contig header fields on $inputVCF to extract chr naming convention (##contig)\n";
+    exit;
+  }
+  return $isChr;
+}
+
+################################
+sub annotateGenes {
+
+  my $inputVCF = shift;
+  my $outDir   = shift;
+
+  my $basenameInputVcf = basename($inputVCF);
+  my $tmpVCF   = "$outDir/$basenameInputVcf";
+  my $annotVCF = "$outDir/$basenameInputVcf";
+
+  if ($basenameInputVcf =~/.gz/) {
+    $tmpVCF   =~s/.vcf.gz/.tmp.vcf/;
+    $annotVCF =~s/.vcf.gz/.annotated.vcf/ if $annotVCF !~/.annotated/;
+  }
+  else {
+    $tmpVCF   =~s/.vcf/.tmp.vcf/;
+    $annotVCF =~s/.vcf/.annotated.vcf/ if $annotVCF !~/.annotated/;
+  }
+
+  if ( !checkChrConvention($inputVCF) ) {
+    open(IN, "$::zcat $::geneList | $::awk \'{gsub(/chr/,\"\", \$1); print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$5\"\t\"\$6\"\t\"\$7}\' |".
+      " $::bedtools intersect -a $inputVCF -b stdin -wao |");
+  }
+  else {
+    open(IN, "$::bedtools intersect -a $inputVCF -b $::geneList -wao |");
+  }
+  print "$::bedtools intersect -a $inputVCF -b $::geneList -wao\n" if $::verbose;
+  my %HashAnno = ();
+  while (my $line=<IN>) {
+      chomp $line;
+      next if $line =~/#/;
+      my @tmp = split("\t", $line);
+      my $coordinates = join("\t", @tmp[0..4]);
+      my $gene = $tmp[-3];
+      if ($gene ne ".") {
+        push @{$HashAnno{$coordinates}}, $gene;
+        @{$HashAnno{$coordinates}}= uniq(@{$HashAnno{$coordinates}});
+      }
+  }
+  close IN;
+  my $newHeader = rewriteHeader($inputVCF, "##INFO=<ID=GENES,Number=1,Type=String,Description=\"Gene name in HUGO notation\">");
+  my @newHeaderArr = split("\n", $newHeader);
+
+  # Write new header
+  open (OUT, ">", $tmpVCF) || die " ERROR: Unable to find $tmpVCF\n";
+  foreach my $entry (@newHeaderArr) {
+    print OUT "$entry\n";
+  }
+
+  # Now loop from initial unnanotated variants and append new fields
+  if ( isGzipped($inputVCF) ) {
+    open(IN, "$::zcat $inputVCF |");
+  }
+  else {
+    open(IN, "<", $inputVCF) || die " ERROR: Unable to open $inputVCF\n";
+  }
+  while (my $line=<IN>) {
+    chomp $line;
+
+    # Skip header lines
+    next if $line =~/#/;
+    my @tmp = split("\t", $line);
+    my $coordinates = join("\t", @tmp[0..4]);
+
+    my $genes = '.';
+    if (exists $HashAnno{$coordinates}) {
+      my @geneArr = ();
+      foreach my $val (@{$HashAnno{$coordinates}}) {
+        push @geneArr, $val;
+      }
+      $genes = join(",", @geneArr);
+    }
+
+    # Fetch genes
+    my @info = split(";", $tmp[7]);
+
+    # Append new field and rejoin INFO
+    push @info, "GENES=$genes";
+    $tmp[7] = join(";", @info);
+
+    # Dump new annotated variant
+    my $newLine = join("\t", @tmp);
+    print OUT "$newLine\n";
+  }
+  close IN;
+  close OUT;
+
+  # Rename new annotated vcf same as initial vcf
+  rename $tmpVCF, $annotVCF;
+
+  # Compress VCFs
+  Utils::compressFileBgzip($annotVCF);
+  my $compressedVCF = $annotVCF . ".gz";
+
+  # Index compressed VCF with tabix
+  Utils::tabixIndex($compressedVCF, "vcf");
+
+  return $compressedVCF;
 }
 
 ################################
@@ -65,30 +245,40 @@ sub annotateGnomad {
     my %headerVCF = %$hashRef;
 
     my $basenameInputVcf = basename($inputVCF);
+    my $tmpVCF   = "$outDir/$basenameInputVcf";
     my $annotVCF = "$outDir/$basenameInputVcf";
-    $annotVCF =~s/.vcf/.annotated.vcf/;
 
-    open (VCF, ">", $annotVCF) || die " ERROR: Unable to open $annotVCF\n";
+    if ($basenameInputVcf =~/.gz/) {
+      $tmpVCF   =~s/.vcf.gz/.tmp.vcf/;
+      $annotVCF =~s/.vcf.gz/.annotated.vcf/ if $annotVCF !~/.annotated./;
+      $annotVCF =~s/.gz//;
+    }
+    else {
+      $tmpVCF   =~s/.vcf/.tmp.vcf/;
+      $annotVCF =~s/.vcf/.annotated.vcf/ if $annotVCF !~/.annotated./;
+    }
 
     if ( isGzipped($inputVCF) ) {
-        open (IN, "$::zcat $inputVCF |") 
+        open (IN, "$::zcat $inputVCF |")
             || die "ERROR: Unable to open $inputVCF\n";
     }
     else {
-        open (IN, "<", $inputVCF) 
+        open (IN, "<", $inputVCF)
             || die "ERROR: Unable to open $inputVCF\n";
     }
 
     my %seenVar = ();
-
     my $flag = 0;
+    open (VCF, ">", $tmpVCF) || die " ERROR: Unable to open $tmpVCF\n";
     while (my $line=<IN>) {
         chomp $line;
+
+        # Header section
         if ($line=~/^#/) {
             if ($line=~/##ALT/ && !$flag) {
                 $flag = 1;
                 foreach my $field (@popDefaults) {
-                    
+
                     my $outField = $headerVCF{$field}{DESCRIPTION};
                     $outField =~s/EVIDENCE/gnomAD_SV_method/;
 
@@ -102,6 +292,7 @@ sub annotateGnomad {
             next;
         }
 
+        # Skipping repeated lines
         $seenVar{$line}++;
         next if $seenVar{$line} > 1;
 
@@ -111,7 +302,7 @@ sub annotateGnomad {
         my $chr   = $tmp[0];
         my $start = $tmp[1];
 
-        my ($end) = grep ($_=~/^END=/, @info);        
+        my ($end) = grep ($_=~/^END=/, @info);
         $end=~s/END=// if $end;
 
         my ($svtype) = grep ($_=~/^SVTYPE=/, @info);
@@ -130,7 +321,7 @@ sub annotateGnomad {
                     my ($x) = grep ($_=~/^$desired=/, @info);
                     push @gathered, $x;
                 }
-                
+
                 my $annot = join(";", @gathered);
                 $annot =~s/EVIDENCE/gnomAD_SV_method/;
 
@@ -152,10 +343,20 @@ sub annotateGnomad {
     close IN;
     close VCF;
 
-    unlink $inputVCF;  
-    rename $annotVCF, $inputVCF;
+    my ($previousAnnVCF) = basename(glob ("$outDir/$annotVCF"));
+    if ($previousAnnVCF eq basename($annotVCF) ) {
+      unlink $annotVCF;
+    }
+    rename $tmpVCF, $annotVCF;
 
-    return $annotVCF;
+    # Compress VCFs
+    Utils::compressFileBgzip($annotVCF);
+    my $compressedVCF = $annotVCF . ".gz";
+
+    # Index compressed VCF with tabix
+    Utils::tabixIndex($compressedVCF, "vcf");
+
+    return $compressedVCF;
 }
 
 ################################
@@ -179,7 +380,7 @@ sub tabixQuery {
         $chrQuery =~s/chr//;
     }
 
-    my $str = `$::tabix $::gnomADvcf $chrQuery:$startQuery-$endQuery`;   
+    my $str = `$::tabix $::gnomADvcf $chrQuery:$startQuery-$endQuery`;
     chomp $str;
     print "$::tabix $::gnomADvcf $chrQuery:$startQuery-$endQuery\n" if $::verbose;
 
@@ -193,14 +394,14 @@ sub tabixQuery {
         my $chrDB   = $tmp[0];
         my $startDB = $tmp[1];
 
-        my ($endDB) = grep ($_=~/^END=/, @info);        
+        my ($endDB) = grep ($_=~/^END=/, @info);
         $endDB=~s/END=//;
 
         my ($typeDB) = grep ($_=~/^SVTYPE=/, @info);
         ($typeDB)=~s/SVTYPE=//;
 
         # Calculate overlap between query and database
-        my ($overlapQuery, $overlapDB)= calculateOverlap($chrQuery, 
+        my ($overlapQuery, $overlapDB)= calculateOverlap($chrQuery,
         $startQuery, $endQuery, $chrDB, $startDB, $endDB);
 
         my $joinedInfo = join(";", @info);
@@ -218,7 +419,7 @@ sub tabixQuery {
             # But do it for PRECISE calls
             else {
                 if ($overlapQuery >= $minOlap && $overlapDB >= $minOlap ) {
-                    push @records, $joinedInfo;               
+                    push @records, $joinedInfo;
                 }
             }
         }
@@ -239,7 +440,7 @@ sub isGzipped {
 
 ################################
 sub returnVcfFields {
-    
+
     my %headerVCF = ();
 
     my @infoArray = ();
@@ -282,14 +483,14 @@ sub calculateOverlap {
     my $olap_A;
     my $olap_B;
 
-    # Minimum reciprocal overlap of 0.9 
+    # Minimum reciprocal overlap of 0.9
     # Case1: coord fits within intron
     #A          ////////////   cnv (start, end)
     #B        ^^^^^^^^^^^^^^^^ intron (st, ed)
     if ($start >= $st && $end <= $ed) {
         $olap_A = 1.00;
         $olap_B = 1.00 - ( ( ($start-$st) + ($ed-$end) ) / $length_B);
-    } 
+    }
     # Case2: coord left-overlap
     #A      ////////////////   cnv (start, end)
     #B        ^^^^^^^^^^^^^^^^ intron (st, ed)
@@ -311,7 +512,7 @@ sub calculateOverlap {
         $olap_A = 1.00 - ( ( ($st-$start) + ($end-$ed) ) / $length_A);
         $olap_B = 1.00;
     }
-    return ($olap_A, $olap_B);    
+    return ($olap_A, $olap_B);
 }
 
 return 1;

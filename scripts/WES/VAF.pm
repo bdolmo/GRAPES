@@ -3,21 +3,21 @@ package VAF;
 
 use strict;
 use Getopt::Long;
-use File::Basename; 
+use File::Basename;
 use List::Util qw(min max);
 use Sort::Key::Natural qw(natsort);
 
 # This module is intended for calculating the B-allele frequencies from each sample (if VCF file is available):
-# "The B-Allele Frequency is a normalized measure of the allelic intensity ratio of two alleles (A and B), 
-# such that a BAF of 1 or 0 indicates the complete absence of one of the two alleles (e.g. AA or BB), 
+# "The B-Allele Frequency is a normalized measure of the allelic intensity ratio of two alleles (A and B),
+# such that a BAF of 1 or 0 indicates the complete absence of one of the two alleles (e.g. AA or BB),
 # and a BAF of 0.5 indicates the equal presence of both alleles (e.g. AB)."
-# Detection of allelic imbalances such as those caused by duplications (e.g. AAB/BBA) or mosaic deletions in the sample. 
+# Detection of allelic imbalances such as those caused by duplications (e.g. AAB/BBA) or mosaic deletions in the sample.
 # Such imbalances can be identified on a BAF plot by the presence of SNPs at frequencies between 0.5 and 0 or 1.
 # For example, the theoretical BAF values of triploid regions (AAA, AAB, ABB or BBB) are 0, 0.33, 0.66 and 1 respectively."
 
 my $minFreebQual= 200;
 my $minSamtQual = 50;
-my $minVarDepth = 30; 
+my $minVarDepth = 30;
 my $varType     = "snp";
 
 
@@ -33,7 +33,8 @@ sub annotateSnvVAF {
     print " INFO: Calling SNVs on sample $sample (samtools)\n";
     my $cmd = "$::samtools mpileup -u -l $bedFile -f $::genome $bamFile $::devNullStderr ";
     $cmd .= "| $::bcftools call -mv --ploidy 1 -Ov  > $outDir/BAF_DATA/$sample.snv.vcf";
-	print "$cmd\n" if $::verbose;
+
+	  print "$cmd\n" if $::verbose;
     system $cmd if !-e "$outDir/BAF_DATA/$sample.snv.vcf";
 
     open (IN, "<", "$outDir/BAF_DATA/$sample.snv.vcf") || die " ERROR: Unable to open $outDir/BAF_DATA/$sample.snv.vcf\n";
@@ -70,7 +71,7 @@ sub annotateSnvVAF {
             my @tmpDP = split (/,/, $DP4);
             my $ref = $tmpDP[0]+$tmpDP[1];
             my $alt = $tmpDP[2]+$tmpDP[3];
-            $Freq = sprintf "%.3f",$alt/$DP; 
+            $Freq = sprintf "%.3f",$alt/$DP;
         }
         else {
             my @details = split (/:/, $tmp[9]);
@@ -78,7 +79,7 @@ sub annotateSnvVAF {
             my @tmpAD = split (/,/, $AD);
             $Freq = sprintf "%.3f",$tmpAD[1]/$DP;
         }
-        # Only selecting variants that pass the filters specified               
+        # Only selecting variants that pass the filters specified
         if ($Qual < $minSamtQual) {
             next;
         }
@@ -99,45 +100,59 @@ sub annotateSnvVAF {
 
     # Now append BAF information to the CNV calls
     my %callVAF = ();
-    open (IN, "$::bedtools intersect -a $bedFile -b $outDir/BAF_DATA/$sample.BAF.bed -wao |");
-    while (my $line=<IN>){
-        chomp $line;
-        my @tmp = split("\t", $line);
-        my $call= join("\t", @tmp[0..3]);
+    if (!-z "$outDir/BAF_DATA/$sample.BAF.bed") {
+      open (IN, "$::bedtools intersect -a $bedFile -b $outDir/BAF_DATA/$sample.BAF.bed -wao |");
+      print "$::bedtools intersect -a $bedFile -b $outDir/BAF_DATA/$sample.BAF.bed -wao\n" if $::verbose;
+      while (my $line=<IN>){
+          chomp $line;
+          my @tmp = split("\t", $line);
+          my $call= join("\t", @tmp[0..3]);
 
+          if (!exists $callVAF{$call}) {
+              $callVAF{$call} = [];
+          }
 
-        if (!exists $callVAF{$call}) {
-            $callVAF{$call} = []; 
-        } 
+          my $vaf = $tmp[-2];
+          if ($vaf ne ".") {
+              push @{$callVAF{$call}}, $vaf;
+          }
+      }
+      close IN;
+    }
+    else {
+      open (IN, "<", $bedFile) || die " ERROR: Unable to open $bedFile\n";
+      while (my $line=<IN>){
+          chomp $line;
+          my @tmp = split("\t", $line);
+          my $call= join("\t", @tmp[0..3]);
 
-        my $vaf = $tmp[-2];
-        if ($vaf ne ".") { 
-            push @{$callVAF{$call}}, $vaf;
-        } 
-     }  
-    close IN;
+          if (!exists $callVAF{$call}) {
+              $callVAF{$call} = [];
+          }
+      }
+      close IN;
+    }
 
     my $vafBed = $bedFile;
-    $vafBed =~s/.bed/.tmp.bed/; 
+    $vafBed =~s/.bed/.tmp.bed/;
 
-    open (OUT, ">", $vafBed) || die " ERROR: Unable to open $vafBed"; 
+    open (OUT, ">", $vafBed) || die " ERROR: Unable to open $vafBed";
     foreach my $call (natsort keys %callVAF) {
-        my $NSNV    = scalar@{$callVAF{$call}};
 
+        my $NSNV    = scalar@{$callVAF{$call}};
         my $meanVAF = '.';
         if (@{$callVAF{$call}}) {
             $meanVAF = Utils::meanArray(@{$callVAF{$call}});
-        } 
+        }
 
         my $vafAnnotations = ";NSNV=$NSNV;BAF=$meanVAF";
         if ($call !~/$vafAnnotations/){
             print OUT "$call;NSNV=$NSNV;BAF=$meanVAF\n";
-
         }
         else {
             print OUT "$call\n";
-        } 
-    } 
+        }
+    }
     close OUT;
     unlink $bedFile;
     rename $vafBed, $bedFile;
@@ -195,7 +210,7 @@ sub selectVariants {
                     my @tmpDP = split (/,/, $DP4);
                     my $ref = $tmpDP[0]+$tmpDP[1];
                     my $alt = $tmpDP[2]+$tmpDP[3];
-                    $Freq = sprintf "%.3f",$alt/$DP; 
+                    $Freq = sprintf "%.3f",$alt/$DP;
                 }
                 else {
                     my @details = split (/:/, $tmp[9]);
@@ -203,7 +218,7 @@ sub selectVariants {
                     my @tmpAD = split (/,/, $AD);
                     $Freq = sprintf "%.3f",$tmpAD[1]/$DP;
                 }
-                # Only selecting variants that pass the filters specified               
+                # Only selecting variants that pass the filters specified
                 if ($Qual < $minFreebQual) {
                     next;
                 }
@@ -220,13 +235,13 @@ sub selectVariants {
             }
             close VCF;
 
-            my $segOnOffData= -e "$::outDir/SEGMENT_DATA/toplot.segmented.$sample.bed" 
+            my $segOnOffData= -e "$::outDir/SEGMENT_DATA/toplot.segmented.$sample.bed"
             ? "$::outDir/SEGMENT_DATA/toplot.segmented.$sample.bed" : undef;
 
-            my $segOnData   = -e "$::outDir/ON_TARGET/SEGMENT_DATA/toplot.segmented.$sample.bed" 
+            my $segOnData   = -e "$::outDir/ON_TARGET/SEGMENT_DATA/toplot.segmented.$sample.bed"
             ? "$::outDir/ON_TARGET/SEGMENT_DATA/toplot.segmented.$sample.bed" : undef;
 
-            my $segOffData  = -e "$::outDir/OFF_TARGET/SEGMENT_DATA/toplot.segmented.$sample.bed" 
+            my $segOffData  = -e "$::outDir/OFF_TARGET/SEGMENT_DATA/toplot.segmented.$sample.bed"
             ? "$::outDir/OFF_TARGET/SEGMENT_DATA/toplot.segmented.$sample.bed" : undef;
 
             if (defined $segOnOffData) {
@@ -269,7 +284,7 @@ sub varCallSamtools {
 
 #####################
 sub annotateBAF {
-    
+
     my $segFile   = shift; # segment file
     my $snpFile   = shift;
     my $sample    = shift;

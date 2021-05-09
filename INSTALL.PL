@@ -39,10 +39,9 @@ if (!-e "$currentDir/db/sqlite") {
   mkdir "$currentDir/db/sqlite";
 }
 
-
-if (!-e "$currentDir/db/gencode.v27") {
-  mkdir "$currentDir/db/gencode.v27";
-}
+# if (!-e "$currentDir/db/gencode.v27") {
+#   mkdir "$currentDir/db/gencode.v27";
+# }
 
 my $cut  = `which cut`;
 chomp $cut;
@@ -69,7 +68,7 @@ my $awk  = `which awk`;
 chomp $awk;
 if (!$awk) {
 	print "ERROR: awk command not found\n";
-	exit;	
+	exit;
 }
 
 my $sed  = `which sed`;
@@ -99,7 +98,7 @@ if (!$uniq) {
 	print "ERROR: uniq command not found\n";
 	exit;
 }
- 
+
 my $mv  = `which mv`;
 chomp $mv;
 if (!$mv) {
@@ -138,11 +137,11 @@ my $Rscript  = `which Rscript`;
 chomp $Rscript;
 
 if (!$Rscript) {
-    print " ERROR: Rscript was not found on PATH\n"; 
+    print " ERROR: Rscript was not found on PATH\n";
     exit;
 }
 
-my $tabix = `which tabix`; 
+my $tabix = `which tabix`;
 chomp $tabix;
 
 if (!$tabix) {
@@ -159,7 +158,7 @@ if (!$bedtools) {
 else {
     my $bedtools_version = `$bedtools --version | $cut -d \" \" -f 2 | $awk '{ split (\$0, a, \".\");  print a[2] }'`;
     chomp $bedtools_version;
-	if ($bedtools_version < 19) { 
+	  if ($bedtools_version < 19) {
     	print " ERROR: BEDtools version $bedtools_version is too old. Please, consider installing the newest version\n"; exit;
     }
 }
@@ -209,16 +208,16 @@ if (!$macs2) {
   else {
 	  my $cmd = "make clean";
 	  system ($cmd);
-	  
+
 	  $cmd = "make CXXFLAGS=\"-std=c++11\"";
 	  system ($cmd);
   }
  }
 
  print " ## Setting SeqLib ##\n";
- 
+
  print YELLOW " ## Checking executables ##\n", RESET;
- my $main = 
+ my $main =
  ( -x "$currentDir/GRAPES" )
  ? " SUCCESS: GRAPES main can be executed\n"
  : die " ERROR: GRAPES cannot be executed\n";
@@ -230,17 +229,17 @@ if (!$macs2) {
  else {
 	print " ERROR: GRAPES cannot be executed\n"
  }
- my $grapes_sv = 
+ my $grapes_sv =
  ( -x "$currentDir/bin/grapes_sv/GRAPES" )
  ? print " SUCCESS: grapes_sv can be executed\n"
  : die " ERROR: grapes_sv cannot be executed\n";
 
- my $targetDepth = 
+ my $targetDepth =
  ( -x "$currentDir/bin/TargetDepth/TargetDepth" )
  ? print " SUCCESS: TargetDepth can be executed\n"
  : die " ERROR: TargetDepth cannot be executed\n";
 
- my $AnnFeat = 
+ my $AnnFeat =
  ( -x "$currentDir/bin/AnnFeat/AnnFeat" )
  ? print " SUCCESS: AnnFeat can be executed\n"
  : die " ERROR: AnnFeat cannot be executed\n";
@@ -255,13 +254,13 @@ if (!$macs2) {
 	   # rename "$currentDir/$name", "$currentDir/$new_name";
  }
 
- if ( !-e "$currentDir/mappability/GRCh38.mappability.100mer.bedGraph.tar.gz" ) {
-	    my $name = "GRCh38.mappability.100mer.bedGraph.tar.gz?dl=0";
-	    my $new_name = "GRCh38.mappability.100mer.bedGraph.tar.gz";
-	    print " INFO: Downloading GRCh38.mappability.100mer.bedGraph.tar.gz\n";
-	     `wget https://www.dropbox.com/s/14fn751kd7tzzue/GRCh38.mappability.100mer.bedGraph.tar.gz?dl=0 -O $currentDir/mappability/$new_name`;
-	  #  rename "$currentDir/$name", "$currentDir/$new_name";
- }
+ # if ( !-e "$currentDir/mappability/GRCh38.mappability.100mer.bedGraph.tar.gz" ) {
+	#     my $name = "GRCh38.mappability.100mer.bedGraph.tar.gz?dl=0";
+	#     my $new_name = "GRCh38.mappability.100mer.bedGraph.tar.gz";
+	#     print " INFO: Downloading GRCh38.mappability.100mer.bedGraph.tar.gz\n";
+	#      `wget https://www.dropbox.com/s/14fn751kd7tzzue/GRCh38.mappability.100mer.bedGraph.tar.gz?dl=0 -O $currentDir/mappability/$new_name`;
+	#   #  rename "$currentDir/$name", "$currentDir/$new_name";
+ # }
 
  if ( !-e "$currentDir/mappability/wgEncodeCrgMapabilityAlign100mer.chr.bedgraph.gz" ) {
 	    my $name = "wgEncodeCrgMapabilityAlign100mer.chr.bedgraph.gz?dl=0";
@@ -271,21 +270,21 @@ if (!$macs2) {
 	   # rename "$currentDir/$name", "$currentDir/$new_name";
  }
 
- if ( !-e "$currentDir/mappability/wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz" ) {
-	    my $name = "wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz?dl=0";
-	    my $new_name = "wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz";
-	    print " INFO: Downloading wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz\n";
-		`wget https://www.dropbox.com/s/e1mtadamo1jr7um/wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz?dl=0 -O $currentDir/mappability/$new_name`;
-	    #rename "$currentDir/$name", "$currentDir/$new_name";
- }
+ # if ( !-e "$currentDir/mappability/wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz" ) {
+	#     my $name = "wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz?dl=0";
+	#     my $new_name = "wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz";
+	#     print " INFO: Downloading wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz\n";
+	# 	`wget https://www.dropbox.com/s/e1mtadamo1jr7um/wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz?dl=0 -O $currentDir/mappability/$new_name`;
+	#     #rename "$currentDir/$name", "$currentDir/$new_name";
+ # }
 
 if ( !-e "$currentDir/db/gnomad/gnomad_v2.1_sv.sites.vcf.gz" ) {
 	    my $name = "gnomad_v2.1_sv.sites.vcf.gz";
 	    print " INFO: Downloading $name\n";
-		`wget https://storage.googleapis.com/gnomad-public/papers/2019-sv/gnomad_v2.1_sv.sites.vcf.gz -O $currentDir/db/gnomad/$name`;
-		`wget https://storage.googleapis.com/gnomad-public/papers/2019-sv/gnomad_v2.1_sv.sites.vcf.gz.tbi -O $currentDir/db/gnomad/$name.tbi`;
+		  `wget https://storage.googleapis.com/gnomad-public/papers/2019-sv/gnomad_v2.1_sv.sites.vcf.gz -O $currentDir/db/gnomad/$name`;
+		  `wget https://storage.googleapis.com/gnomad-public/papers/2019-sv/gnomad_v2.1_sv.sites.vcf.gz.tbi -O $currentDir/db/gnomad/$name.tbi`;
 	    #rename "$currentDir/$name", "$currentDir/$new_name";
- } 
+ }
 
 if ( !-e "$currentDir/db/gencode.v27/gencode.v27.annotation.gff3.gz") {
 	my $name = "gencode.v27.annotation.gff3.gz";
@@ -296,6 +295,7 @@ if ( !-e "$currentDir/db/gencode.v27/gencode.v27.annotation.gff3.gz") {
 checkRpackages();
 
 sub checkRpackages {
+	
     print " INFO: Checking R packages\n";
     open R, ">", "Rinstaller.R" || die "ERROR: Unable to open Rinstaller\n";
     print R "is.installed <- function(mypkg){ is.element(mypkg, installed.packages()[,1])}\n";
@@ -312,7 +312,7 @@ print(\"Installing argparse:\n\"); install.packages(\"argparse\", repos = \"http
 }";
     print R "else {
 print(\"INFO: argparse is already installed\n\")
-}\n"; 
+}\n";
 
 	print R "if (!requireNamespace(\"BiocManager\", quietly = TRUE)){
 print(\"Installing argparse:\n\"); install.packages(\"BiocManager\", repos = \"http://cran.us.r-project.org\")
@@ -320,7 +320,7 @@ print(BiocManager::install(\"GenomicRanges\"))
 }";
     print R "else {
 print(\"INFO: BiocManager is already installed\n\")
-}\n"; 
+}\n";
 
     print R "if (!is.installed(\"RColorBrewer\")){
 print(\"Installing RColorBrewer:\n\"); install.packages(\"RColorBrewer\", repos = \"http://cran.us.r-project.org\")

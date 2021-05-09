@@ -22,6 +22,7 @@ our $version;
 our $genome;
 our $verbose;
 our $inputVCF;
+our $genomeVersion;
 
 # Default cpu's is 1. Using more than 4 threads
 my $threads = 1;
@@ -34,6 +35,7 @@ my $doFilter     = "";
 my $doVCF        = "";
 my $doHTML       = "";
 my $debug        = "";
+my $doHelp       = "";
 
 # For Exome and Targeted sequencing
 my $doAll = "";
@@ -78,13 +80,13 @@ my $maxSampleSizeCluster = 15; # Default maximum number of samples to build a si
 my $minSampleSizeCluster = 4;  # Default minimum number of samples to build a single baseline
 my $minOfftargetReads = 10e6; # Default minimum number of offtarget reads needed to trigger analysis
 my $minOfftargetSD    = 0.2; # Default minimum standard deviation of offtarget ratios needed to trigger analysis
-my $PCAvariance      = 0.7;
+my $PCAvariance       = 0.7;
 
 our $lowerDelCutoff = 0.35;    # Default minimum ratio cutoff for deletions. highly permissive
 our $upperDelCutoff = 0.70;    # Default maximum ratio cutoff for deletions. highly permissive
 our $lowerDupCutoff = 1.30;    # Default minimum ratio cutoff for duplications. highly permissive
 our $minSizeSV = 50; # Minimum size in bp required to output an SV
-our $minZscore = 2.5; # Corresponding to a 99.5% percentile 
+our $minZscore = 2.5; # Corresponding to a 99.5% percentile
 our $chromo;
 our $minOlap = 0.5;
 our $maxSizeSV = 5000000;
@@ -124,7 +126,7 @@ our $awk  = `which awk`;
 chomp $awk;
 if (!$awk) {
 	print "ERROR: awk command not found\n";
-	exit;	
+	exit;
 }
 
 our $sed  = `which sed`;
@@ -154,7 +156,7 @@ if (!$uniq) {
 	print "ERROR: uniq command not found\n";
 	exit;
 }
- 
+
 our $mv  = `which mv`;
 chomp $mv;
 if (!$mv) {
@@ -206,7 +208,7 @@ if (!$bedtools) {
 else {
     my $bedtools_version = `$bedtools --version | $cut -d \" \" -f 2 | $awk '{ split (\$0, a, \".\");  print a[2] }'`;
     chomp $bedtools_version;
-	if ($bedtools_version < 19) { 
+	if ($bedtools_version < 19) {
     	print " ERROR: BEDtools version $bedtools_version is too old. Please, consider installing the newest version\n"; exit;
     }
 }
@@ -218,10 +220,9 @@ if (!$samtools) {
 	print " ERROR: samtools was not found on PATH\n"; exit;
 }
 
-
 # Capturing warnings instead of just printing them: https://perlmaven.com/how-to-capture-and-save-warnings-in-perl
-local $SIG{__WARN__} = sub { 
-   my $message = shift; 
+local $SIG{__WARN__} = sub {
+   my $message = shift;
    logger('warning', $message);
 };
 
@@ -230,17 +231,16 @@ my $WESexe = "$dirname/scripts/runWES";
 my $REFexe = "$dirname/scripts/runREF";
 my $AnnoExe= "$dirname/scripts/runAnnotate";
 
-our  $grapes_sv  = 
+our $grapes_sv  =
   ( -x "$dirname/bin/grapes_sv/GRAPES" )
   ? "/usr/bin/head"
   : die "ERROR: grapes_sv cannot be executed\n";
-our  $TargetDepth  = 
+our $TargetDepth  =
   ( -x "$dirname/bin/TargetDepth/TargetDepth" )
   ? "/usr/bin/head"
   : die "ERROR: TargetDepth cannot be executed\n";
 
 my $analysisType = $ARGV[0];
-
 our $bam;
 our $excludeRegions;
 our $numCluster;
@@ -256,35 +256,33 @@ Help () if (@ARGV < 1 or !GetOptions(
 	'bed|b=s'=>\$bed,
 	'threads|t=i'=>\$threads,
 	'refdir=s'=>\$refDir,
+	'genome_version=s'=>\$genomeVersion,
 
-    # Params for WGS
-	'bam=s'=>\$bam,
-	'exclude|e=s' =>\$excludeRegions,
-	'numclus|c=i' =>\$numCluster,
-	'sdclust|s=i' =>\$sdCluster,
-	'breakreads|r=i'=>\$breakReads,
+  # Params for WGS
+	'bam=s'         =>\$bam,
+	'exclude|e=s'   =>\$excludeRegions,
+	'numclus|c=i'   =>\$numCluster,
+	'sdclust|s=i'   =>\$sdCluster,
+	'breakreads|br=i'=>\$breakReads,
 	'minsvsize|m=i' =>\$minSizeSV,
 	'maxsvsize|x=i' =>\$maxSizeSV,
 
-	'chr=s'=>\$chromo,
-	'd'=>\$debug,
-
 	# Params annotate
-	'l=f'=>\$minOlap,
-	'in=s' =>\$inputVCF,
+	'minolap|l=f' =>\$minOlap,
+	'input_vcf|i=s' =>\$inputVCF,
 
-	'version|v' =>\$version,
-	'all' =>\$doAll,
-	'cnv' =>\$doCNV,
-	'merge' =>\$doMerge,
+	'all'  =>\$doAll,
+	'cnv'  =>\$doCNV,
+	'chr=s'=>\$chromo,
+	'merge'=>\$doMerge,
 	'gfeatures' =>\$doGenomeFeat,
 	'filter' =>\$doFilter,
-	'vcf' =>\$doVCF,
-	'reporthtml' =>\$doHTML,
-	'breakpoint' =>\$doBreakpoint,
-	'extract' =>\$doExtraction,
-	'offtarget' =>\$doOfftarget,	
-	'buildref' =>\$buildReference,
+	'vcf'    =>\$doVCF,
+	'reporthtml'=>\$doHTML,
+	'breakpoint'=>\$doBreakpoint,
+	'extract'   =>\$doExtraction,
+	'offtarget' =>\$doOfftarget,
+	'buildref'  =>\$buildReference,
 	'usecontroldir' =>\$useControlDir,
 	'normalize=s' =>\$doNormalization,
 	'vaf' => \$doVAF,
@@ -300,11 +298,11 @@ Help () if (@ARGV < 1 or !GetOptions(
 
 	# Params for WES
 	# For test-control paired analysis
-	'pooled=s'=>\$input,
+	'pooled=s'  =>\$input,
 	'cases=s'   =>\$cases,
 	'controls=s'=>\$controls,
 
-	'nobreakpoint' =>\$noBreakpoint,
+	'nobreakpoint'=>\$noBreakpoint,
 	'noofftarget' =>\$noOfftarget,
 	'novaf' =>\$noVaf,   #####
 	'nocallcnv' =>\$noCallCNV, #####
@@ -329,21 +327,22 @@ Help () if (@ARGV < 1 or !GetOptions(
 
 	'minzscore=f'=>\$minZscore,
 	'verbose' =>\$verbose,
-
+	'help|h'=>\$doHelp,
+	'd'=>\$debug,
+	'version|v'=>\$version,
 	# Params for REF
-	'merge' =>\$doMerge,
-	'i=s' =>\$input,
-	
-    'n=s' =>\$normalizedDir,
-    'plotClusters' =>\$plotClusters
+	#'merge' =>\$doMerge,
+	#'i=s' =>\$input,
+  #'n=s' =>\$normalizedDir,
+  #'plotClusters' =>\$plotClusters
 	)
 );
 
 if ($version) {
-	print " GRAPES (version $versionNumber)\n";exit;
+	print " GRAPES (version $versionNumber)\n";
+	exit;
 }
-
-$analysisType =~s/s\+//;
+$analysisType =~s/s\+//g;
 
 if ($analysisType eq 'wgs') {
 	$analyzeWGS = 'wgs';
@@ -368,26 +367,22 @@ else {
  # Do annotation
  if ($annotate) {
 
-	print BOLD GREEN "\n   Mode: SV annotation\n";
-	print RESET;
-
 	if (!$inputVCF || !$outDir) {
 		HelpAnnotate();
 		exit;
 	}
 
-	$cmd = "$AnnoExe -in $inputVCF -o $outDir -l $minOlap";
+	$cmd = "$AnnoExe -i $inputVCF -o $outDir -l $minOlap";
 	system ($cmd);
  }
  elsif ($analyzeWGS) {
-     
+
 	if (!$outDir && !$bam && !$genome) {
 		Help3();
 		exit;
 	}
 	if (!$outDir) {
-		promptErr();
-		print " output directory was not specified\n";
+		print " ERROR: output directory was not specified\n";
 		Help3();
 		exit;
 	}
@@ -395,20 +390,17 @@ else {
 		mkdir $outDir;
 	}
 	if (!$bam) {
-		promptErr();
-		print " missing BAM file (-bam)\n";
+		print " ERROR: missing BAM file (-bam)\n";
 		Help3();
 		exit;
 	}
 	if (!-e $bam) {
-		promptErr();
 		print " ERROR: Non-existent $bam BAM file (-bam)\n";
 		Help3();
 		exit;
 	}
 	if (!$genome) {
-		promptErr();
-		print " missing genome file (-g)\n";
+		print "ERROR: missing genome file (-g)\n";
 		Help3();
 		exit;
 	}
@@ -447,7 +439,7 @@ else {
 	}
 	if ($minSizeSV) {
 		$opt.= " -m $minSizeSV";
-	}		
+	}
 	if ($threads) {
 		$opt.= " -t $threads";
 	}
@@ -488,15 +480,30 @@ else {
 	system ($cmd);
  }
  elsif ($analyzeWES) {
+	 if ($doHelp) {
+		 Help2();
+
+		 exit;
+	 }
 
 	 if ($input && !$controls && !$cases) {
-		$inputOption = "-pooled $input";
+		$inputOption = "--pooled $input";
 	 }
 	 elsif ($cases && $controls && !$input) {
-		$inputOption = "-cases $cases -controls $controls";
+		$inputOption = "--cases $cases --controls $controls";
 	 }
 	 if (!$inputOption && !$bed && !$genome && !$outDir) {
 		 Help2(); exit;
+	 }
+
+	 if (!$genomeVersion) {
+	 	$genomeVersion = "hg19";
+	 }
+	 else {
+	 	if ($genomeVersion ne 'hg19' && $genomeVersion ne 'hg38') {
+	 		print " ERROR: Not allowed genome version $genomeVersion. Choose: hg19 or hg38\n";
+	 		exit;
+	 	}
 	 }
 
 	 if (!$inputOption ) {
@@ -540,7 +547,10 @@ else {
 	}
 	if ($refDir){
 		$opt.=" --refdir $refDir";
-	} 
+	}
+	if ($genomeVersion) {
+		$opt.=" --genome_version $genomeVersion";
+	}
 	if ($doBreakpoint) {
 		$opt.= " --breakpoint";
 	}
@@ -679,11 +689,12 @@ else {
 	}
 
 	$cmd = "$WESexe $opt  $inputOption -g $genome -o $outDir -b $bed -t $threads";
-    print " INFO: $cmd\n"; 
+  print " INFO: $cmd\n";
 	system ($cmd);
 }
  else {
 	Help();
+
  }
 
 goodBye();
@@ -696,7 +707,7 @@ sub checkChrFormat {
  my $bam = shift;
  my $str = `$samtools view -H $bam | $grep 'SN'`;
  chomp $str;
- 
+
  my $mapFile;
  my $centromerFile;
  my $hasChr;
@@ -735,7 +746,7 @@ sub checkChrFormat {
  chomp $str;
  @tmpStr = split (/\n/, $str);
  our %ChromosomeLengths = map {  (split /\t/,  $tmpStr[$_])[0] => (split /\t/, $tmpStr[$_])[1] } 0..$#tmpStr;
- 
+
  return ($hasChr, $mapFile, $centromerFile, $chrFile);
 
 }
@@ -769,7 +780,7 @@ sub printParams {
 	print " BED file: $bed\n";
  }
  else {
-	print " Whole-genome analysis\n";	
+	print " Whole-genome analysis\n";
  }
  print " ####################\n\n";
 
@@ -787,7 +798,7 @@ sub displayHeader {
  print GREEN " Structural Variant (SV) discovery for Illumina short-read sequencing data\n";
  print RESET;
  print YELLOW " version:";
- print RESET; 
+ print RESET;
  print GREEN "     BETA ($versionNumber)\n\n", RESET, "\n";
 }
 
@@ -795,40 +806,46 @@ sub displayHeader {
 sub Help {
 	print "\n  Description: Structural Variant (SV) discovery for Illumina short-read sequencing data
   Version $versionNumber
-  Usage:  $0 <mode> 
+  Usage:  $0 <mode>
 
   mode:
-     wgs	  Analyze Whole-Genome Sequencing (Experimental)
-     wes	  Analyze Whole-Exome Sequencing/Targeted Sequencing
-     annotate     Annotate BED file using gnomAD SV dataset
+     wes	  Analyze SV/CNVs on targeted sequencing
+     annotate     Annotate individual VCF files
+     wgs	  Analyze SV/CNVs on Whole-Genome Sequencing (Experimental)
+
 \n"; exit;
 }
 
 ########################
 sub Help2 {
 
-	print "\n   ./GRAPES wes [required_params] [Options] [Other_params]\n\n";
-    print BOLD GREEN "   USAGE" , RESET, "\n";
-	print"   Pooled:       ./GRAPES wes -pooled <BAM_DIR> --outdir <OUT_DIR> --bed <ROI_BED> --genome <GENOME_FA> --all
-   Case-control: ./GRAPES wes --cases <TEST_BAM_DIR> --control <CONTROL_BAM_DIR> --outdir <OUT_DIR> --bed <ROI_BED> --genome <GENOME_FA> --all\n\n";
+	print "\n   Description: Call CNV/SVs on targeted sequencing data\n";
+	print "   Usage: ./GRAPES wes [required_params] [Options] [Other_params]\n\n";
+  print BOLD GREEN "   Workflows:" , RESET, "\n";
+	print"   Pooled analysis:
+   GRAPES wes --pooled <bam_dir> --outdir <output_dir> --bed <roi> --genome <genome_fa> --all
 
-    print BOLD GREEN "   REQUIRED" , RESET, "\n";
+   Case-control analysis:
+   GRAPES wes --cases <bam_dir> --control <bam_dir> --outdir <output_dir> --bed <roi> --genome <genome_fa> --all\n\n";
 
-	print "   -o,--outdir	STRING	  Output directory
-   -g,--genome	STRING    Genome reference in FASTA format
-   -b,--bed	STRING	  BED ROIs 
-   -t,--threads	INT	  Number of CPUs (default = 1)\n\n";
+  print BOLD GREEN "   I/O" , RESET;
+	print "
+   -o,--outdir	        STRING	  Output directory
+   -g,--genome_fasta	STRING    Genome reference in FASTA format
+   -r,--genome_version	STRING    Genome version. Choose: hg19, hg38 (default = hg19)
+   -b,--bed	        STRING	  Regions file in BED format
+   -t,--threads	        INT	  Number of CPUs (default = 1)\n\n";
 
-    print BOLD GREEN "   OPTIONS" , RESET, "\n";
+  print BOLD GREEN "   Options" , RESET, "\n";
 	print "   --all	              Perform all steps below
-   --refdir                   Input directory where DB references will be stored.	
+   --refdir                   Input directory where DB references will be stored.
    --breakpoint	              Perform Breakpoint analysis
      --nobreakpoint	      Turn off breakpoint analysis
    --extract	              Extract Depth, GC and Mappability
    --offtarget	              Perform Off-target analysis
      --noofftarget	      Turn off offtarget analysis
    --buildref	              Build a reference from a pool of samples
-   --callcnv	              Perform ratio and CBS segmentation
+   --callcnv	              Segment and call CNVs
      --nocallcnv	      Turn off CNV calling
    --normalize	              Normalize read depth. Choose from 'median', 'PCA'. (default='median')
    --plotsingleexon	      Plot single exon CNVs
@@ -840,7 +857,7 @@ sub Help2 {
      --novaf	              Turn off VAF analysis
    --samtools	              Default if --vaf set. Perform variant call with samtools
    --freebayes	              if --vaf set, perform variant call with freebayes
-   --annotate	              Annotate VCF file with gnomAD v2
+   --annotate	              Annotate VCF
      --noannotate	      Turn off VCF annotation
    --filtervcf	              Filter low qual VCF entries
      --nofiltervcf	      Turn off VCF filtering
@@ -850,7 +867,7 @@ sub Help2 {
      --nofilterdiscordantonly Turn off discordant-pair only filtering
    --verbose	              Print sub-command messages\n\n";
 
-    print BOLD GREEN "   PARAMS" , RESET, "\n";
+  print BOLD GREEN "   Parameters" , RESET, "\n";
 	print "   --mincorr            FLOAT     Minimum sample correlation to build a reference set (default = 0.92)
    --minrefsize         INT       Minimum number of samples to build a single baseline (default = 2)
    --maxrefsize         INT       Maximum number of samples to build a single baseline (default = 15)
@@ -866,58 +883,62 @@ sub Help2 {
    --mindiscordants     INT       Minimum number of discordant read pairs (default = 5)
    --mindiscordantssd   INT       Minimum insert size std.deviations to define discordant pairs (default = 10)
    --breakreads         INT       Minimum number of break reads (default = 5)\n\n";
-
  exit;
 }
 
 ########################
 sub Help3 {
 
-    print BOLD GREEN "\n   USAGE" , RESET, "\n";
-
+  print BOLD GREEN "\n   USAGE" , RESET, "\n";
 	print "   ./GRAPES wgs [Required_params] [Options] [Other_params]\n\n";
 
-    print BOLD GREEN "   REQUIRED" , RESET, "\n";
+  print BOLD GREEN "   REQUIRED" , RESET, "\n";
 
 	print "   -bam	STRING	BAM input sample (must be indexed)
-   -g	STRING	Genome reference in FASTA format 
+   -g	STRING	Genome reference in FASTA format
    -e	STRING	Excluded regions in BED format
    -o	STRING	Output directory\n\n";
 
-    print BOLD GREEN "   OPTIONS" , RESET, "\n";
+  print BOLD GREEN "   OPTIONS" , RESET, "\n";
 
-   	print "   --all	    Perform all steps below
+  print "   --all	    Perform all steps below
    --breakpoint     Perform Breakpoint analysis
    --cnv            Call CNVs using Reference Coverage Profiles
    --merge	    Merge SVs calls
    --gfeatures	    Annotate genomic features arround predicted SVs
-   --filter	    Apply hard filters 
-   --vcf	    Generate VCF 
-   --reportHTML	    Generate HTML report\n\n";
+   --filter	    Apply hard filters
+   --vcf	    Generate VCF
+   --reportHTML	    Generate an HTML report\n\n";
 
     print BOLD GREEN "   TUNNING" , RESET, "\n";
 
 	print "   -chr STRING  restrict analysis to an specific chromosome
-   -c	INT	Minimum number of Discordant pairs in a cluster [default = 5] 
-   -s	INT	Minimum std.dev's from the mean insert size to include discordant pairs on a cluster [default = 4] 
+   -c	INT	Minimum number of Discordant pairs in a cluster [default = 5]
+   -s	INT	Minimum std.dev's from the mean insert size to include discordant pairs on a cluster [default = 4]
    -r	INT	Minimum number of Break reads in a cluster [default = 5]
    -m   INT     Minimum SV size in bp [default = 50]
    -t   INT 	Number of CPUs (default 1)\n\n";
-
  exit;
 }
 
 ########################
 
 sub HelpAnnotate {
-	print "\n   Description: Annotate your BED file using gnomAD SV callset (hg19/GRCh37)\n";
-	print "   Usage:  ./GRAPES annotate -b <BED_FILE> -n <OUTPUT_NAME> -o <OUTPUT_DIR> -l <MIN_RECIPROCAL_OVERLAP>\n\n";
-exit; 
+
+    print"\n    Description: Annotate SVs from individual VCFs
+    Usage:  ./GRAPES annotate [OPTIONS]
+
+    Options:
+    -i,--input_vcf  STRING  Input VCF file
+    -o,--output_dir STRING  Output directory (default=.)
+    -l,--r_overlap  FLOAT   Reciprocal overlap fraction (default=0.5)\n\n";
+    exit;
+
 }
 
 ########################
 sub promptErr {
 
 	print BOLD RED  " \n  ERROR", RESET; print ":";
-	
+
 }
