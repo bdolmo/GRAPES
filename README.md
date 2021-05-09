@@ -112,12 +112,12 @@ docker run -t -i \
 
 ##### Options:
 ```
---all	                     Perform all steps below
---refdir	                     Input directory where DB references will be stored.
---breakpoint	                     Perform Breakpoint analysis
-  --nobreakpoint	                     Turn off breakpoint analysis
---extract	                     Extract Depth, GC and Mappability
---offtarget	                     Perform Off-target analysis
+--all       Perform all steps below
+--refdir       Input directory where DB references will be stored.
+--breakpoint       Perform Breakpoint analysis
+  --nobreakpoint       Turn off breakpoint analysis
+--extract       Extract Depth, GC and Mappability
+--offtarget       Perform Off-target analysis
   --noofftarget	                     Turn off offtarget analysis
 --buildref	                     Build a reference from a pool of samples
 --callcnv	                 Segment and call CNVs
