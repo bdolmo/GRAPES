@@ -112,14 +112,14 @@ docker run -t -i \
 
 ##### Options:
 ```
---allPerform all steps below
---refdir                   Input directory where DB references will be stored.
---breakpoint	             Perform Breakpoint analysis
-  --nobreakpoint	         Turn off breakpoint analysis
---extract	                 Extract Depth, GC and Mappability
---offtarget	               Perform Off-target analysis
-  --noofftarget	           Turn off offtarget analysis
---buildref	               Build a reference from a pool of samples
+--all	                     Perform all steps below
+--refdir	                     Input directory where DB references will be stored.
+--breakpoint	                     Perform Breakpoint analysis
+  --nobreakpoint	                     Turn off breakpoint analysis
+--extract	                     Extract Depth, GC and Mappability
+--offtarget	                     Perform Off-target analysis
+  --noofftarget	                     Turn off offtarget analysis
+--buildref	                     Build a reference from a pool of samples
 --callcnv	                 Segment and call CNVs
   --nocallcnv	             Turn off CNV calling
 --normalize	               Normalize read depth. Choose from 'median', 'PCA'. (default='median')
