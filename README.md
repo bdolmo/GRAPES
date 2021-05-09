@@ -104,43 +104,43 @@ docker run -t -i \
 ##### I/O:
 ```
 -o,--outdir	        STRING	  Output directory
--g,--genome_fasta	STRING    Genome reference in FASTA format
+-g,--genome_fasta	  STRING    Genome reference in FASTA format
 -r,--genome_version	STRING    Genome version. Choose: hg19, hg38 (default = hg19)
--b,--bed	        STRING	  Regions file in BED format
--t,--threads	        INT	  Number of CPUs (default = 1)
+-b,--bed	          STRING	  Regions file in BED format
+-t,--threads	        INT	    Number of CPUs (default = 1)
 ```
 
 ##### Options:
 ```
---all	              Perform all steps below
+--all	                     Perform all steps below
 --refdir                   Input directory where DB references will be stored.
---breakpoint	              Perform Breakpoint analysis
-  --nobreakpoint	      Turn off breakpoint analysis
---extract	              Extract Depth, GC and Mappability
---offtarget	              Perform Off-target analysis
-  --noofftarget	      Turn off offtarget analysis
---buildref	              Build a reference from a pool of samples
---callcnv	              Segment and call CNVs
-  --nocallcnv	      Turn off CNV calling
---normalize	              Normalize read depth. Choose from 'median', 'PCA'. (default='median')
---plotsingleexon	      Plot single exon CNVs
-  --noplotcnv	      Turn off CNV plotting
---plotlargecnv	      Plot segmented CNVs
-  --noplotcnv	      Turn off CNV plotting
---plotscatter	      Plot genome-wide CNV scatter plot
---vaf	              Include Variant-Allele Frequency (VAF) analysis
-  --novaf	              Turn off VAF analysis
---samtools	              Default if --vaf set. Perform variant call with samtools
---freebayes	              if --vaf set, perform variant call with freebayes
---annotate	              Annotate VCF
-  --noannotate	      Turn off VCF annotation
---filtervcf	              Filter low qual VCF entries
-  --nofiltervcf	      Turn off VCF filtering
---reporthtml	              Write results to an HTML file (Only for gene panels)
-  --noreporthtml	      Turn off report HTML creation
+--breakpoint	             Perform Breakpoint analysis
+  --nobreakpoint	         Turn off breakpoint analysis
+--extract	                 Extract Depth, GC and Mappability
+--offtarget	               Perform Off-target analysis
+  --noofftarget	           Turn off offtarget analysis
+--buildref	               Build a reference from a pool of samples
+--callcnv	                 Segment and call CNVs
+  --nocallcnv	             Turn off CNV calling
+--normalize	               Normalize read depth. Choose from 'median', 'PCA'. (default='median')
+--plotsingleexon	         Plot single exon CNVs
+  --noplotcnv	             Turn off CNV plotting
+--plotlargecnv	           Plot segmented CNVs
+  --noplotcnv	             Turn off CNV plotting
+--plotscatter	             Plot genome-wide CNV scatter plot
+--vaf	                     Include Variant-Allele Frequency (VAF) analysis
+  --novaf	                 Turn off VAF analysis
+--samtools	               Default if --vaf set. Perform variant call with samtools
+--freebayes	               if --vaf set, perform variant call with freebayes
+--annotate	               Annotate VCF
+  --noannotate	           Turn off VCF annotation
+--filtervcf	               Filter low qual VCF entries
+  --nofiltervcf	           Turn off VCF filtering
+--reporthtml	             Write results to an HTML file (Only for gene panels)
+  --noreporthtml	         Turn off report HTML creation
 --filterdiscordantonly     Filter discordant-only SV predictions (default = true)
   --nofilterdiscordantonly Turn off discordant-pair only filtering
---verbose	              Print sub-command messages
+--verbose	                 Print sub-command messages
 
  ```
 ##### Tuning parameters:
