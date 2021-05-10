@@ -681,7 +681,7 @@ use Sort::Key::Natural qw(natsort);
 			}
 		}
 
-		open OUT, ">", "$offtargetDir/$sample.normalized.bed";
+		open OUT, ">", "$offtargetDir/$sample.normalized.bed" || die " ERROR: Unable to open $offtargetDir/$sample.normalized.bed\n";
 		foreach my $line (@tmpFile) {
 			chomp $line;
       next if $line =~/^#/;

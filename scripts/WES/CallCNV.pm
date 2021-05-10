@@ -426,7 +426,7 @@ sub getAffectedROIs {
     print " INFO: Calling multi-exon CNVs\n";
 
 	# Get segmented CNVs (multi-exon)
-    foreach my $file (@segmentedFiles) {
+  foreach my $file (@segmentedFiles) {
 
 		my $sampName = basename($file);
 		$sampName =~s/segmented.//;

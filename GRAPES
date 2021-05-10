@@ -252,11 +252,11 @@ our $annoName;
 # Displaying usage panel
 Help () if (@ARGV < 1 or !GetOptions(
 	'outdir|o=s'=>\$outDir,
-	'genome|g=s'=>\$genome,
+	'fasta|f=s'=>\$genome,
 	'bed|b=s'=>\$bed,
 	'threads|t=i'=>\$threads,
 	'refdir=s'=>\$refDir,
-	'genome_version=s'=>\$genomeVersion,
+	'genome|g=s'=>\$genomeVersion,
 
   # Params for WGS
 	'bam=s'         =>\$bam,
@@ -549,7 +549,7 @@ else {
 		$opt.=" --refdir $refDir";
 	}
 	if ($genomeVersion) {
-		$opt.=" --genome_version $genomeVersion";
+		$opt.=" --genome $genomeVersion";
 	}
 	if ($doBreakpoint) {
 		$opt.= " --breakpoint";
@@ -688,7 +688,7 @@ else {
 		$opt.= " --nofilterdiscordantonly";
 	}
 
-	$cmd = "$WESexe $opt  $inputOption -g $genome -o $outDir -b $bed -t $threads";
+	$cmd = "$WESexe $opt  $inputOption -f $genome -o $outDir -b $bed -t $threads";
   print " INFO: $cmd\n";
 	system ($cmd);
 }
@@ -823,18 +823,18 @@ sub Help2 {
 	print "   Usage: ./GRAPES wes [required_params] [Options] [Other_params]\n\n";
   print BOLD GREEN "   Workflows:" , RESET, "\n";
 	print"   Pooled analysis:
-   GRAPES wes --pooled <bam_dir> --outdir <output_dir> --bed <roi> --genome <genome_fa> --all
+   GRAPES wes --pooled <bam_dir> --outdir <output_dir> --bed <roi> --fasta <genome_fa> --genome <hg18/hg38> --all
 
    Case-control analysis:
-   GRAPES wes --cases <bam_dir> --control <bam_dir> --outdir <output_dir> --bed <roi> --genome <genome_fa> --all\n\n";
+   GRAPES wes --cases <bam_dir> --control <bam_dir> --outdir <output_dir> --bed <roi> --fasta <genome_fa> --genome <hg18/hg38> --all\n\n";
 
   print BOLD GREEN "   I/O" , RESET;
 	print "
-   -o,--outdir	        STRING	  Output directory
-   -g,--genome_fasta	STRING    Genome reference in FASTA format
-   -r,--genome_version	STRING    Genome version. Choose: hg19, hg38 (default = hg19)
-   -b,--bed	        STRING	  Regions file in BED format
-   -t,--threads	        INT	  Number of CPUs (default = 1)\n\n";
+   -o,--outdir	    STRING   Output directory
+   -f,--fasta	    STRING   Genome reference in FASTA format
+   -g,--genome	    STRING   Genome version. Choose: hg19, hg38 (default = hg19)
+   -b,--bed	    STRING   Regions file in BED format
+   -t,--threads	    INT      Number of CPUs (default = 1)\n\n";
 
   print BOLD GREEN "   Options" , RESET, "\n";
 	print "   --all	              Perform all steps below
@@ -855,8 +855,8 @@ sub Help2 {
    --plotscatter	      Plot genome-wide CNV scatter plot
    --vaf	              Include Variant-Allele Frequency (VAF) analysis
      --novaf	              Turn off VAF analysis
-   --samtools	              Default if --vaf set. Perform variant call with samtools
-   --freebayes	              if --vaf set, perform variant call with freebayes
+   --samtools	              if --vaf set, perform SNV variant call with samtools (default)
+   --freebayes	              if --vaf set, perform SNV variant call with freebayes
    --annotate	              Annotate VCF
      --noannotate	      Turn off VCF annotation
    --filtervcf	              Filter low qual VCF entries

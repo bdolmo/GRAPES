@@ -16,7 +16,7 @@ sub Merge {
 
     #my $outputBed= shift;
 
-    my $flag = 0;
+    my $flag  = 0;
     my $count = 0;
 
     my %HoA = ();
@@ -44,22 +44,26 @@ sub Merge {
     my $cnvr_B;
     my $checkCNVR;
 
-    my $nLines =`$::cat $inputBed | $::wc -l`;
+    my $nLines =`$::cat $inputBed | $::sort -V  | $::uniq | $::wc -l`;
     chomp $nLines;
+    print " VARIANTS=> $nLines\n";
 
     open (OUT, ">", $outputBed) || die " ERROR: unable to open $outputBed\n";
     my $num = 0;
+
     open (IN, "$::sort -V $inputBed | $::uniq |" );
     while (my $line =<IN>) {
         chomp $line;
         $count++;
 
-        my @tmp = split (/\t/, $line);
+        my @tmp  = split (/\t/, $line);
         my $Size = $tmp[2]-$tmp[1];
+
         next if $Size < $::minSizeSV;
         next if $Size > $::maxSizeSV;
 
         if ($flag == 0) {
+
             %HoA = parseCall ( $line );
 
             if ($nLines > 1) {
@@ -72,21 +76,41 @@ sub Merge {
                 push @LOH, $HoA{lohSup};
                 push @Precisions, $HoA{precision};
 
-                $Breakreads+=$HoA{breakreads};
-                $Assembled+=$HoA{assembled};
-                $Discordants+=$HoA{readPairs};
+                $Breakreads+=$HoA{breakreads} if $HoA{breakreads} ne '.';
+                $Assembled+=$HoA{assembled} if $HoA{assembled} ne '.';
+                $Discordants+=$HoA{readPairs} if $HoA{readPairs} ne '.';
                 if ( $HoA{csdisc} ne '.' && $HoA{csdisc} >0 ) {
                     $Cumulative+=$HoA{csdisc};
-                }        
+                }
                 $flag = 1;
+                next;
             }
-            next if $nLines > 1;
+
+            my $fallsInCNVR = "no";
+            if ($checkCNVR) {
+               $fallsInCNVR = "yes";
+            }
+            if (!$checkCNVR && $cnvr_A) {
+               $fallsInCNVR = "yes";
+            }
+            my $AF = '.';
+
+            if ($nLines == 1)  {
+              if ($HoA{svlen} < $::maxSizeSV) {
+                  print OUT "$HoA{chr}\t$HoA{start}\t$HoA{end}\t$HoA{precision}\t";
+                  print OUT "$HoA{svtype}\t$fallsInCNVR\t$HoA{svlen}\t$HoA{mapq}\t";
+                  print OUT "$HoA{kdiv}\t$AF\t$HoA{breakreads}\t$HoA{assembled}\t";
+                  print OUT "$HoA{readPairs}\t$HoA{rdRatio}\t$HoA{rdMad}\t";
+                  print OUT "$HoA{lohSup}\t$HoA{csdisc}\t$HoA{nins}\n";
+              }
+            }
+
         }
-        if ($flag == 1 || $nLines == 1) {
+        if ($flag == 1) {
             %HoB = parseCall ( $line );
 
             my ($is_olap) = reciprocalOverlap( $HoA{chr}, $HoB{chr}, $HoA{start}, $HoA{end}, $HoB{start}, $HoB{end}, $HoA{precision}, $HoB{precision});
-            if ($is_olap ) { 
+            if ($is_olap ) {
                 $checkCNVR = checkCNVR($HoA{svtype}, $HoB{svtype});
             }
             else {
@@ -104,9 +128,9 @@ sub Merge {
                 push @LOH, $HoB{lohSup};
                 push @Precisions, $HoB{precision};
 
-                $Breakreads+=$HoB{breakreads};
-                $Assembled+=$HoB{assembled};
-                $Discordants+=$HoB{readPairs};
+                $Breakreads+=$HoB{breakreads} if $HoB{breakreads} ne '.';
+                $Assembled+=$HoB{assembled} if $HoB{assembled} ne '.';
+                $Discordants+=$HoB{readPairs} if $HoB{readPairs} ne '.';
                 if ( $HoB{csdisc} ne '.' && $HoB{csdisc} >0 ) {
                     $Cumulative+=$HoB{csdisc};
                 }
@@ -133,10 +157,10 @@ sub Merge {
 
                 my $fallsInCNVR = "no";
                 if ($checkCNVR) {
-                   $fallsInCNVR = "yes"; 
+                   $fallsInCNVR = "yes";
                 }
                 if (!$checkCNVR && $cnvr_A) {
-                   $fallsInCNVR = "yes"; 
+                   $fallsInCNVR = "yes";
                 }
                 my $AF = '.';
 
@@ -150,8 +174,8 @@ sub Merge {
                         print OUT "$HoB{chr}\t$HoB{start}\t$HoB{end}\t$HoB{precision}\t$HoB{svtype}\t$fallsInCNVR\t$svlen\t$HoB{mapq}\t$HoB{kdiv}\t$AF\t$HoB{breakreads}\t$HoB{assembled}\t$HoB{readPairs}\t$HoB{rdRatio}\t$HoB{rdMad}\t$HoB{lohSup}\t$Cumulative\t$HoB{nins}\n";
                     }
                 }
-            
-                @Starts = (); 
+
+                @Starts = ();
                 @Ends = ();
                 @Mapq = ();
                 @Kdiv = ();
@@ -258,54 +282,58 @@ sub updatePrecision {
 
 #################################################
 sub parseCall {
-    
-    my $line = shift;
 
-    my @tmp = split (/\t/, $line);
-    my @info = split (/;/, $tmp[3]);
+  my $line = shift;
 
-    my ($svtype) = grep ($_=~/SVTYPE=/, @info);
-	$svtype =~s/SVTYPE=//;	
+  my @tmp = split (/\t/, $line);
+  my @info = split (/;/, $tmp[3]);
 
-    my $svlen = $tmp[2]-$tmp[1];
+  my ($svtype) = grep ($_=~/SVTYPE=/, @info);
+	$svtype =~s/SVTYPE=//;
+
+  my $svlen = $tmp[2]-$tmp[1];
 
 	my ($breakreads) = grep ($_=~/BREAKREADS=/, @info);
-	$breakreads =~s/BREAKREADS=//;	
+	$breakreads =~s/BREAKREADS=//;
+  $breakreads = "." if !$breakreads;
 
 	my ($assembled) = grep ($_=~/ASSEMBLED=/, @info);
 	$assembled =~s/ASSEMBLED=//;
-	
+  $assembled = "." if !$assembled;
+
 	my ($kdiv) = grep ($_=~/KDIV=/, @info);
 	$kdiv =~s/KDIV=//;
+  $kdiv = "." if !$kdiv;
 
 	my ($mapq) = grep ($_=~/MAPQ=/, @info);
 	$mapq =~s/MAPQ=//;
-    #$mapq = '.' if !$mapq;
+  $mapq = '.' if !$mapq;
 
 	my ($PE) = grep ($_=~/^PE=/, @info);
-	$PE =~s/^PE=//;	
+	$PE =~s/^PE=//;
+  $PE = '.' if !$PE;
 
 	my ($RDratio) = grep ($_=~/RDratio=/, @info);
 	$RDratio =~s/RDratio=//;
-    $RDratio = '.' if !$RDratio;	
+  $RDratio = '.' if !$RDratio;
 
 	my ($RDmad) = grep ($_=~/RDmad=/, @info);
 	$RDmad =~s/RDmad=//;
-    $RDmad = '.' if !$RDmad;
+  $RDmad = '.' if !$RDmad;
 
 	my ($lohSup) = grep ($_=~/LOHsupp=/, @info);
 	$lohSup =~s/LOHsupp=//;
-    $lohSup = '.' if !$lohSup;	
+  $lohSup = '.' if !$lohSup;
 
-    my ($csdisc) = grep ($_=~/CSDISC=/, @info);
+  my ($csdisc) = grep ($_=~/CSDISC=/, @info);
 	$csdisc =~s/CSDISC=//;
-    $csdisc = 0 if !$csdisc;	
+  $csdisc = 0 if !$csdisc;
 
-    my ($nins) = grep ($_=~/NINS=/, @info);
+  my ($nins) = grep ($_=~/NINS=/, @info);
 	$nins =~s/NINS=//;
-    $nins = 0 if !$nins;
+  $nins = 0 if !$nins;
 
-    my %hash = (
+  my %hash = (
         chr   => $tmp[0],
         start => $tmp[1],
         end   => $tmp[2],
@@ -322,9 +350,9 @@ sub parseCall {
         lohSup => $lohSup,
         csdisc => $csdisc,
         nins => $nins
-    );
+  );
 
-    return %hash;
+  return %hash;
 }
 
 #################################################
@@ -340,7 +368,7 @@ sub returnMinOlap  {
     }
 	elsif ($precision_A eq "PRECISE" && $precision_B eq "PRECISE") {
 		$minOlap = 0.7;
-	}    
+	}
 
     return $minOlap;
 }
@@ -410,7 +438,7 @@ sub reciprocalOverlap {
     my $start_B = shift;
     my $end_B   = shift;
     my $precision_A = shift;
-    my $precision_B = shift;    
+    my $precision_B = shift;
 
     my $length_A = $end_A - $start_A;
     my $length_B = $end_B - $start_B;
@@ -432,10 +460,10 @@ sub reciprocalOverlap {
     if ($start_B == $start_A && $end_B > $end_A) {
         #   //////////////
         #   ///////////////
-        $olap_A = 1.00; 
+        $olap_A = 1.00;
 		$olap_B = 1.00 - ((($start_B-$start_A) + ($end_B-$end_A) ) / $length_B) ;
 
-    }    
+    }
     if ($start_B >= $start_A && $end_B <= $end_A) {
         #   //////////////
         #   //////////
@@ -450,7 +478,7 @@ sub reciprocalOverlap {
         #    //////////
 		$olap_A = 1.00 - ( ($start_B - $start_A )/ $length_A);
 		$olap_B = 1.00 - ( ($end_B - $end_A)/ $length_B);
-		
+
 		if ($olap_A < 0) { $olap_A = 0; }
 		if ($olap_B < 0) { $olap_B = 0; }
 	}

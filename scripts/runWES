@@ -385,12 +385,12 @@ Help () if (@ARGV<1 or !GetOptions(
 	'controls=s'=>\$controls,
 
 	'outdir|o=s'=>\$outDir,
-	'genome|g=s'=>\$genome,
+	'fasta|f=s'=>\$genome,
 	'bed|b=s'=>\$bed,
   'threads|t=i'=>\$threads,
 	'all' =>\$doAll,
 	'help|h' =>\$help,
-	'genome_version|r=s'=>\$genomeVersion,
+	'genome|g=s'=>\$genomeVersion,
 
 	# Breakpoint analysis
 	'breakpoint'        =>\$doBreakpoint,
@@ -1499,7 +1499,8 @@ sub Help {
 
   print BOLD GREEN "   I/O" , RESET, "\n";
 	print "   -o,--outdir	 STRING	  Output directory
-   -g,--genome	 STRING   Genome reference in FASTA format
+   -f,--fasta	 STRING   Genome reference in FASTA format
+	 -g,--genome	 STRING   Genome reference in FASTA format
    -b,--bed 	 STRING	  Regions file in BED format
    -t,--threads	 INT	  Number of CPUs (default = 1)\n\n";
 

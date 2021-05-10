@@ -4,39 +4,34 @@ package Breakpoint;
 
 use strict;
 use Getopt::Long;
-use File::Basename; 
+use File::Basename;
 use File::Copy;
 
 sub AnalyzeWES {
 
-   my $bam     = shift;
-   my $genome  = shift;
-   my $outdir  = shift;
-   my $outname = shift;
-   my $nDiscordants = shift;
-   my $nSds    = shift;
-   my $nBreaks = shift;
+  my $bam     = shift;
+  my $genome  = shift;
+  my $outdir  = shift;
+  my $outname = shift;
+  my $nDiscordants = shift;
+  my $nSds    = shift;
+  my $nBreaks = shift;
 
-    my $ontargetSvCalls = "$outdir/ON_TARGET/$outname/$outname.breakpoints.bed";
-
-	if (-e $ontargetSvCalls) {
-		return 0;
-	}
+  my $rawSvCalls      = "$outdir/ON_TARGET/$outname/$outname.tmp.rawcalls.bed";
+  my $ontargetSvCalls = "$outdir/ON_TARGET/$outname/$outname.breakpoints.bed";
 
 	# Calling SV through grapes_sv binary
-    my $cmd = "$::grapesBreak -b $bam --find-small on -j $::maxSizeSV -g $genome -o $outdir -n $outname -t $::threads --wes on -c $::minDiscordants -s $::minDiscordantsSD -r $::minBreakReads -e $::centromeres $::devNull";
+  my $cmd = "$::grapesBreak -b $bam --find-small on -j $::maxSizeSV -g $genome -o $outdir -n $outname -t $::threads --wes on -c $::minDiscordants -s $::minDiscordantsSD -r $::minBreakReads -e $::centromeres $::devNull";
 	print"$cmd\n" if $::verbose;
-    system $cmd if !-e $ontargetSvCalls;
+  system $cmd if !-e $ontargetSvCalls;
 
-	my $rawSvCalls = "$outdir/ON_TARGET/$outname/$outname.tmp.rawcalls.bed";
+	move "$outdir/$outname.tmp.rawcalls.bed", $rawSvCalls if -e "$outdir/$outname.tmp.rawcalls.bed";
 
-	move "$outdir/$outname.tmp.rawcalls.bed", $rawSvCalls;
-	
 	# Merging SV breakpoints that point to the same variant
 	my $mergedSVs = mergeSV::Merge( $rawSvCalls );
 
 	# Selecting SV calls that overlap with ROI file
-	my $str = 
+	my $str =
 	 `$::sort -V $mergedSVs | $::uniq | $::bedtools intersect -a stdin -b $::bed -wa -wb`;
 	chomp $str;
 
@@ -79,9 +74,9 @@ sub AnalyzeWES {
 		my $AF          = $tmp[9];
 		my $breakReads  = $tmp[10];
 		my $assembled   = $tmp[11];
-		my $PE          = $tmp[12];	
-		my $rdRatio     = $tmp[13];	
-		my $rdMad       = $tmp[14];	
+		my $PE          = $tmp[12];
+		my $rdRatio     = $tmp[13];
+		my $rdMad       = $tmp[14];
 		my $isLOh       = $tmp[15];
 		my $cumulative  = $tmp[16];
 		my $nins        = $tmp[17];
@@ -94,7 +89,8 @@ sub AnalyzeWES {
 	close OUT;
 
 	# Removing temporal files
-    removeSvTmpFiles($outdir, $outname);
+  removeSvTmpFiles($outdir, $outname);
+
  }
 ####################################################################
  sub getAffectedROIs {
@@ -102,11 +98,11 @@ sub AnalyzeWES {
 	my $segment = shift; # coordinate from the called cnv segment
 	my $arrRef  = shift; # Array reference of each entry from the ROI bed
 
-	my @arr = @$arrRef; 
+	my @arr = @$arrRef;
 
 	# getting all ROI targets (that come from the 4th column on the BED file) inside the segment
 	my @targets   = grep ($_ =~/$segment/, @arr);
-			
+
 	#Defining left-most and right-most exons from the segment if available
 	my ($firstEx, $firstGene, $firstExon);
 	my ($lastEx, $lastGene, $lastExon);
@@ -122,15 +118,15 @@ sub AnalyzeWES {
 	my @arrROIs;
 	my $affectedROIs;
 
-	# if ROIs contains the expected format (e.g NM_707070_3_2;DUMMYGENE) 
-	if ( $tmpFirst[-1] =~/.{1,}_.{1,}_.{1,}_.{1,};.{1,}$/ 
+	# if ROIs contains the expected format (e.g NM_707070_3_2;DUMMYGENE)
+	if ( $tmpFirst[-1] =~/.{1,}_.{1,}_.{1,}_.{1,};.{1,}$/
 		&& $tmpLast[-1] =~/.{1,}_.{1,}_.{1,}_.{1,};.{1,}$/ )  {
 		$firstGene = ( split /[_;]/, $tmpFirst[-1] )[4];
 		$firstExon = ( split /[_;]/, $tmpFirst[-1] )[3];
 		$lastGene  = ( split /[_;]/, $tmpLast[-1] )[4];
 		$lastExon  = ( split /[_;]/, $tmpLast[-1] )[3];
 
-		# For multi-exonic CNVs displaying first and last exon 
+		# For multi-exonic CNVs displaying first and last exon
 		if (@targets > 3) {
 			$affectedROIs = "$firstGene\_$firstExon" . "," . "$lastGene\_$lastExon";
 		}
@@ -144,7 +140,7 @@ sub AnalyzeWES {
 	}
 	# However, if ROI name contains other format we just concatenate its content
 	else  {
-		# For multi-exonic CNVs displaying first and last exon 
+		# For multi-exonic CNVs displaying first and last exon
 		if (@targets > 3) {
 			$affectedROIs = $tmpFirst[-1] . "," . $tmpLast[-1];
 		}
@@ -164,7 +160,7 @@ sub AnalyzeWES {
  sub removeSvTmpFiles {
 
    my $outdir  = shift;
-   my $outname = shift; 
+   my $outname = shift;
 
    unlink ("$outdir/$outname.FR.bam");
    unlink ("$outdir/$outname.FR.bam.bai");
