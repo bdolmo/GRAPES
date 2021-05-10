@@ -70,7 +70,7 @@ In addition it will download both 75-mer and 100-mer mappability tracks for GRCh
 
 #### Workflow 1: Pooled Analysis (creates a reference using all available samples):
  ```
- GRAPES wes --pooled <bam_dir> --outdir <output_dir> --bed <roi> --fasta <genome_fa> --genome <hg18/hg38> --all
+ GRAPES wes --pooled <bam_dir> --outdir <output_dir> --bed <roi> --fasta <genome_fa> --genome <hg19/hg38> --all
  ```
 
 (docker)
@@ -81,12 +81,12 @@ docker run -t -i \
 -v $HOME/GENOME_FOLDER:/genome_folder \
 -v $HOME/OUTPUT_FOLDER:/output_folder \
 -it bdolmo/grapes:latest GRAPES wes \
--all -pooled /bam_folder/ -b /bed_folder/targets.bed -g /genome_folder/genome.fa -o /out_dir/ -t 4
+-all -pooled /bam_folder/ -b /bed_folder/targets.bed -f /genome_folder/genome.fa -g <hg19/hg38> -o /out_dir/ -t 4
 ```
 
 #### Workflow 2: Case-Control analysis:
 ```
-GRAPES wes --cases <bam_dir> --control <bam_dir> --outdir <output_dir> --bed <roi> --fasta <genome_fa> --genome <hg18/hg38> --all
+GRAPES wes --cases <bam_dir> --control <bam_dir> --outdir <output_dir> --bed <roi> --fasta <genome_fa> --genome <hg19/hg38> --all
 ```
 
 (docker)
@@ -98,7 +98,7 @@ docker run -t -i \
 -v $HOME/GENOME_FOLDER:/genome_folder \
 -v $HOME/OUTPUT_FOLDER:/output_folder \
 -it bdolmo/grapes:latest GRAPES wes \
--all -cases /case_folder/ -controls /control_folder/ -b /bed_folder/targets.bed -g /genome_folder/genome.fa -o /out_dir/ -t 4
+-all -cases /case_folder/ -controls /control_folder/ -b /bed_folder/targets.bed -f /genome_folder/genome.fa -g <hg19/hg38> -o /out_dir/ -t 4
 ```
 
 ##### I/O:
