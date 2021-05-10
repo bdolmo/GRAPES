@@ -70,7 +70,7 @@ In addition it will download both 75-mer and 100-mer mappability tracks for GRCh
 
 #### Workflow 1: Pooled Analysis (creates a reference using all available samples):
  ```
- GRAPES wes --pooled <bam_dir> --outdir <output_dir> --bed <roi> --genome <genome_fa> --all
+ GRAPES wes --pooled <bam_dir> --outdir <output_dir> --bed <roi> --fasta <genome_fa> --genome <hg18/hg38> --all
  ```
 
 (docker)
@@ -86,7 +86,7 @@ docker run -t -i \
 
 #### Workflow 2: Case-Control analysis:
 ```
-GRAPES wes --cases <bam_dir> --control <bam_dir> --outdir <output_dir> --bed <roi> --genome <genome_fa> --all
+GRAPES wes --cases <bam_dir> --control <bam_dir> --outdir <output_dir> --bed <roi> --fasta <genome_fa> --genome <hg18/hg38> --all
 ```
 
 (docker)
@@ -104,7 +104,8 @@ docker run -t -i \
 ##### I/O:
 ```
 -o,--outdir          STRING    Output directory
--g,--genome_fasta    STRING    Genome reference in FASTA format
+-f,--fasta          STRING    Output directory
+-g,--genome      STRING    Genome reference in FASTA format
 -r,--genome_version  STRING    Genome version. Choose: hg19, hg38 (default = hg19)
 -b,--bed             STRING    Regions file in BED format
 -t,--threads         INT       Number of CPUs (default = 1)
