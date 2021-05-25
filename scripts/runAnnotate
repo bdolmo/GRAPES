@@ -111,8 +111,8 @@ my $outDir;
 # Displaying usage panel
 helpAnnot () if (@ARGV<3 or !GetOptions(
 	'i|input_vcf=s' =>\$inputVCF,
-  'l=f' =>\$minOlap,
-	'o=s' =>\$outDir
+  'l|min_overlap=f' =>\$minOlap,
+	'o|outdir=s' =>\$outDir
   )
 );
 

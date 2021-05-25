@@ -192,7 +192,6 @@ sub annotateGenes {
   }
   while (my $line=<IN>) {
     chomp $line;
-
     # Skip header lines
     next if $line =~/#/;
     my @tmp = split("\t", $line);
@@ -257,22 +256,22 @@ sub annotateGnomad {
       $tmpVCF   =~s/.vcf/.tmp.vcf/;
       $annotVCF =~s/.vcf/.annotated.vcf/ if $annotVCF !~/.annotated./;
     }
-
+    my $fh;
     if ( isGzipped($inputVCF) ) {
-        open (IN, "$::zcat $inputVCF |")
-            || die "ERROR: Unable to open $inputVCF\n";
+        open $fh, "$::zcat $inputVCF |";
     }
     else {
-        open (IN, "<", $inputVCF)
+        open ($fh, "<", $inputVCF)
             || die "ERROR: Unable to open $inputVCF\n";
     }
+    my $hasChrom = checkChrConvention($inputVCF);
 
     my %seenVar = ();
     my $flag = 0;
-    open (VCF, ">", $tmpVCF) || die " ERROR: Unable to open $tmpVCF\n";
-    while (my $line=<IN>) {
-        chomp $line;
 
+    open (VCF, ">", $tmpVCF) || die " ERROR: Unable to open $tmpVCF\n";
+    while (my $line=<$fh>) {
+        chomp $line;
         # Header section
         if ($line=~/^#/) {
             if ($line=~/##ALT/ && !$flag) {
@@ -308,8 +307,15 @@ sub annotateGnomad {
         my ($svtype) = grep ($_=~/^SVTYPE=/, @info);
         ($svtype) =~s/SVTYPE=// if $svtype;
 
-        my $precision = grep ($_=~/PRECISE/, @info);
-
+        my ($precision) = grep ($_=~/PRECISE/, @info);
+        #print "$line\n";
+        if (!$precision) {
+          $precision = 'PRECISE';
+        }
+        if (!$hasChrom) {
+          #$chr = "chr" . $chr;
+          #print "$chr\n";
+        }
         my @gnomad = tabixQuery($chr, $start, $end, $svtype, $precision, $minOlap);
 
         if (@gnomad) {
@@ -340,7 +346,7 @@ sub annotateGnomad {
             print VCF join("\t", @tmp[0..7]) . ";" . join(";", @popData) ."\t". $tmp[8] . "\t" . $tmp[9] . "\n";
         }
     }
-    close IN;
+    close $fh;
     close VCF;
 
     my ($previousAnnVCF) = basename(glob ("$outDir/$annotVCF"));
