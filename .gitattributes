@@ -1,16 +1,10 @@
 bin/grapes_sv/* linguist-vendored
-bin/SeqLib/* linguist-vendored
-bin/htslib/* linguist-vendored
 *.pm linguist-language=Perl
 bin/TargetDepth* linguist-vendored
 bin/offtarget/* linguist-vendored
 bin/megadepth/** linguist-vendored
-bin/SeqLib/bwa/** linguist-vendored
-bin/SeqLib/fermi-lite/** linguist-vendored
-bin/SeqLib/htslib/** linguist-vendored
-bin/SeqLib/SeqLib/** linguist-vendored
-bin/SeqLib/src/** linguist-vendored
 bin/htslib/** linguist-vendored
+bin/SeqLib/** linguist-vendored
 
 *.pl linguist-detectable
 *.pm linguist-detectable
