@@ -26,7 +26,6 @@ RUN apt-get update && apt-get install -y \
     samtools \
     tabix \
     bcftools \
-    gnuplot \
     gnupg2 \
     gnupg1
 
@@ -47,26 +46,30 @@ RUN apt-get -y install wget
 RUN apt-get -y install python3.5
 
 RUN apt-get -y install python-numpy
- 
+
 RUN cpanm Parallel::ForkManager \
     Statistics::Descriptive \
     Sort::Key::Natural \
     Chart::Gnuplot \
     JSON::MaybeXS \
-    DBD::SQLite
+    DBD::SQLite \
+    Excel::Writer::XLSX
 
 #RUN pip install --upgrade pip
 #RUN pip install numpy
 RUN apt-get -y install macs
 #RUN pip install MACS2
-RUN R -e "install.packages('BiocManager',dependencies=TRUE, repos='http://cran.rstudio.com/')" 
+RUN R -e "install.packages('BiocManager',dependencies=TRUE, repos='http://cran.rstudio.com/')"
 RUN Rscript -e 'BiocManager::install("DNAcopy")'
 RUN Rscript -e 'BiocManager::install("aroma.light")'
-RUN R -e "install.packages('ggplot2',dependencies=TRUE, repos='http://cran.rstudio.com/')" 
-RUN R -e "install.packages('RColorBrewer',dependencies=TRUE, repos='http://cran.rstudio.com/')" 
-RUN R -e "install.packages('reshape2',dependencies=TRUE, repos='http://cran.rstudio.com/')" 
-RUN R -e "install.packages('egg',dependencies=TRUE, repos='http://cran.rstudio.com/')" 
-RUN R -e "install.packages('PSCBS',dependencies=TRUE, repos='http://cran.rstudio.com/')" 
+RUN Rscript -e 'BiocManager::install("GenomicRanges")'
+RUN R -e "install.packages('argparse',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('gridExtra',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('ggplot2',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('RColorBrewer',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('reshape2',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('egg',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('PSCBS',dependencies=TRUE, repos='http://cran.rstudio.com/')"
 
 RUN cd /opt \
     && git clone https://github.com/arq5x/bedtools2.git \

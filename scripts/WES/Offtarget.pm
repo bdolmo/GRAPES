@@ -8,6 +8,8 @@ use List::Util qw(min max);
 use Parallel::ForkManager;
 use Sort::Key::Natural qw(natsort);
 
+
+
 ##########################
 sub appendOfftargetMetrics2Summary {
 
@@ -131,7 +133,7 @@ sub removePeaks {
 
 		# Identify off-target peaks using MACS2
 		print " INFO: Offtarget peak calling for $sample.offTarget.bam file\n";
-	 	$cmd = "$::macs2 callpeak -t $offtargetDir/$sample.offTarget.bam -n $offtargetDir/$sample.orfanPeaks";
+	 	$cmd = "$::macs2 callpeak -t $offtargetDir/$sample.offTarget.bam -n $offtargetDir/$sample.orfanPeaks $::devNull";
 	 	print "$cmd\n" if $::verbose;
 		system($cmd);
 
@@ -174,23 +176,28 @@ sub createBins {
 	return 1;
  }
 
-
  # Adding some padding coordinates at each peak identified
  my $cmd = "$::cat @narrowPeaksFiles | $::sort -V -u " .
- " | $::awk '{if (\$2<\$3) {print \$1\"\t\"\$2-400\"\t\"\$3+400\"\t\"\"mergedPaddedNarrowPeaks\"} else if (\$2>\$3) {print \$1\"\t\"\$2+400\"\t\"\$3-400\"\t\"\$4\"\t\"\"mergedPaddedNarrowPeaks\"}}' - ";
+ " | $::awk '{if (\$2<\$3) {print \$1\"\t\"\$2-400\"\t\"\$3+400\"\t\"\"mergedPaddedNarrowPeaks\"}" .
+ " else if (\$2>\$3) {print \$1\"\t\"\$2+400\"\t\"\$3-400\"\t\"\$4\"\t\"\"mergedPaddedNarrowPeaks\"}}' - ";
  $cmd.= " | $::grep -v '\_'> $offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed";
  system($cmd);
 
  # Deleting inconsistent coordinate entries when poiting out of the chromosome length
- open (IN, "<", "$offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed") || die " ERROR: Unable to open $offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed\n";
- open (OUT, ">", "$offtargetDir/$::outName.MergedNarrowPeaks.bed") || die " ERROR: Unable to open $offtargetDir/$::outName.MergedNarrowPeaks.bed\n";
+ open (IN, "<", "$offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed")
+ 	|| die " ERROR: Unable to open $offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed\n";
+ open (OUT, ">", "$offtargetDir/$::outName.MergedNarrowPeaks.bed")
+ 	|| die " ERROR: Unable to open $offtargetDir/$::outName.MergedNarrowPeaks.bed\n";
  while (my $line=<IN>) {
 	chomp $line;
 	my @tmp = split (/\t/, $line);
-	if ($tmp[2] > $::ChromosomeLengths{$tmp[0]}) {
-		$tmp[2] = $::ChromosomeLengths{$tmp[0]};
+	my $chr   = $tmp[0];
+	my $start = $tmp[1];
+	my $end   = $tmp[2];
+	if ($end > $::ChromosomeLengths{$chr}) {
+		$end = $::ChromosomeLengths{$chr};
 	}
-	print OUT "$tmp[0]\t$tmp[1]\t$tmp[2]\t$tmp[3]\n";
+	print OUT "$chr\t$start\t$end\t$tmp[3]\n";
  }
  close IN;
  close OUT;
@@ -219,7 +226,6 @@ sub createBins {
  print "$cmd\n" if $::verbose;
  system($cmd);
 
-
  my @offbams = glob("$offtargetDir/*bam");
  open (TMP, ">", "$::outDir/offtarget_info.tmp.txt") || die " ERROR: Unable to open $::outDir/offtarget_info.tmp.txt\n";
 
@@ -238,20 +244,16 @@ sub createBins {
 			if ($::sampleHash{$sample}{OFFTARGETBIN} < 50000) {
 				$::sampleHash{$sample}{OFFTARGETBIN} = 50000;
 			}
-
 			$::sampleHash{$sample}{READSOFFTARGET} = $counts;
-
 			print TMP "$sample\t$::sampleHash{$sample}{READSOFFTARGET}\t$::sampleHash{$sample}{OFFTARGETBIN}\n";
 
 			my $countsHuman = Utils::number2human($counts);
 			my $binSizeHuman= Utils::number2human($::sampleHash{$sample}{OFFTARGETBIN});
-
-			# $cmd = "$::bedtools bamtobed -i $bam | $::awk \'{ print \$1\"\t\"\$2 }\'> $offtargetDir/$sample.offtarget.coordinates.bed";
-			# system $cmd if !-e "$offtargetDir/$sample.offtarget.coordinates.bed";
-
 			print " INFO: $sample off-target reads: $countsHuman\toff-target bin size: $binSizeHuman\n";
+
 			#estimateWindowSize($offtargetDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN}, $bam);
-			my $sample_offtarget_bed = createPseudowindows($offtargetDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN});
+			my $sample_offtarget_bed
+				= createPseudowindows($offtargetDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN});
 		}
 		else {
 			$::sampleHash{$sample}{READSOFFTARGET} = 0;
@@ -259,6 +261,22 @@ sub createBins {
 		}
 
  }
+ my @binArray = ();
+ for my $sample (sort keys %::sampleHash) {
+	 if ($::sampleHash{$sample}{OFFTARGETBIN}) {
+		 push @binArray, $::sampleHash{$sample}{OFFTARGETBIN};
+	 }
+ }
+ my $medianBinSize = Utils::medianArray(@binArray);
+ if ($medianBinSize) {
+	 print " INFO: Median off-target bin size: " . Utils::number2human($medianBinSize) . "\n";
+ }
+ my $globalOfftargetBed="";
+ if ($medianBinSize) {
+	 	$globalOfftargetBed = createPseudowindows($offtargetDir, "global", $medianBinSize)
+ }
+ #exit;
+
  #$::pm->wait_all_children;
  close TMP;
 

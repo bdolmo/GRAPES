@@ -103,7 +103,7 @@ sub mergeOnOffRatios {
 		if ( -e $ontargetRatios && -e $offtargetRatios ) {
 			my @ratioData = ();
 			push @ratioData, $ontargetRatios;
-			if ($::sampleHash{$sample}{OFFTARGET_SD_RATIO} < 0.2) {
+			if ($::sampleHash{$sample}{OFFTARGET_SD_RATIO} < 0.3) {
 				push @ratioData, $offtargetRatios;
 			}
 			my $cmd = "$::zcat @ratioData | $::sort -V | $::gzip > $OnOfftargetRatios\n";

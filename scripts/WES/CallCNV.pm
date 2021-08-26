@@ -1002,10 +1002,10 @@ sub getAffectedROIs {
 		system $cmd;
 	}
 
-    open (IN, "<", $tmpRcalls) || die " ERROR: Unable to open $tmpRcalls\n";
+  open (IN, "<", $tmpRcalls) || die " ERROR: Unable to open $tmpRcalls\n";
 	open (OUT, ">>", $toMergeSegs) || die " ERROR: Unable to open $toMergeSegs\n";
-    while(my $line=<IN>) {
-    	chomp $line;
+  while(my $line=<IN>) {
+    chomp $line;
 		my @tmp = split("\t", $line);
 
 		my $chr   = $tmp[0];

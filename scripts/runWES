@@ -1080,40 +1080,6 @@ foreach my $sample ( sort keys %sampleHash ) {
 	print " INFO: Segmenting on-target data\n";
 	Segment::CBS($ontargetDir, "on-target", $analysisMode);
 
-	########################################
-	#	Importing VCFs  to calculate VAF   #
-	########################################
-
-	# DEPRECATED MARCH '21
-	# if ($doVAF) {
-	# 	foreach my $sample ( sort keys %sampleHash ) {
-
-	# 		my $pid = $pm -> start() and next;
-
-	# 		if (-e "$sampleHash{$sample}{SNPVCF}") {
-	# 			print " INFO: Importing $sample\'s SNV VCF\n";
-	# 		}
-	# 		else {
-	# 			if ($doVAF) {
-	# 				if ($doSamtools) {
-	# 					if ($samtools && $bcftools) {
-	# 						VAF::varCallSamtools($sampleHash{$sample}{PATH}, $sample);
-	# 					}
-	# 				}
-	# 				if ($doFreebayes) {
-	# 					if ($freebayes) {
-	# 						VAF::varCallFreebayes($sampleHash{$sample}{PATH}, $sample);
-	# 					}
-	# 				}
-	# 			}
-	# 		}
-	# 		$pm->finish;
-	# 	}
-	# 	$pm->wait_all_children;
-	# #Todo: some sort of validation function for calls with Germline/Somatic tags
-	# 	VAF::selectVariants();
-	# }
-
 	print " INFO: Calling on-target CNVs\n";
 	CallCNV::call($ontargetDir, $analysisMode, "on-target", $bed,
 		"$ontargetDir/$outName.Ratios.bed.gz");

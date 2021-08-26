@@ -34,16 +34,21 @@ sub exportCnvXLS  {
   $worksheet->write( $row, 9, 'Ratio', $format);
   $worksheet->write( $row, 10, 'Score', $format);
   $worksheet->write( $row, 11, 'Sample', $format);
-
+  my %seenEntry = ();
 	foreach my $sample ( natsort keys %::sampleHash ) {
+
+      next if !-e $::sampleHash{$sample}{READY_VCF};
 
     	open(IN, "<", $::sampleHash{$sample}{READY_VCF})
         || die " ERROR: Unable to open $::sampleHash{$sample}{READY_VCF}\n";
 
       while (my $line=<IN>) {
         chomp $line;
+
         #Skip VCF header
         next if $line=~/^#/;
+        $seenEntry{$line}++;
+        next if $seenEntry{$line} > 1;
         my @tmp = split("\t", $line);
         $row++;
 

@@ -11,3 +11,6 @@ bin/SeqLib/htslib/* linguist-vendored
 bin/SeqLib/SeqLib/* linguist-vendored
 bin/SeqLib/src/* linguist-vendored
 
+*.pl linguist-detectable
+*.pm linguist-detectable
+*.cpp linguist-detectable

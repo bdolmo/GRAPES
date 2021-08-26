@@ -804,15 +804,12 @@ sub displayHeader {
 
 ########################
 sub Help {
-	print "\n  Description: Structural Variant (SV) discovery for Illumina short-read sequencing data
-  Version $versionNumber
+	print "\n  Description: Structural and Copy Number Variation analysis for targeted sequencing
+  Version: $versionNumber
   Usage:  $0 <mode>
-
-  mode:
+  Modes:
      wes	  Analyze SV/CNVs on targeted sequencing
      annotate     Annotate individual VCF files
-     wgs	  Analyze SV/CNVs on Whole-Genome Sequencing (Experimental)
-
 \n"; exit;
 }
 
@@ -820,12 +817,13 @@ sub Help {
 sub Help2 {
 
 	print "\n   Description: Call CNV/SVs on targeted sequencing data\n";
-	print "   Usage: ./GRAPES wes [required_params] [Options] [Other_params]\n\n";
+	print "   Version: $versionNumber\n";
+	print "   Usage: ./GRAPES wes [I/O] [Options] [Params]\n\n";
   print BOLD GREEN "   Workflows:" , RESET, "\n";
-	print"   Pooled analysis:
+	print"   a) Pooled analysis:
    GRAPES wes --pooled <bam_dir> --outdir <output_dir> --bed <roi> --fasta <genome_fa> --genome <hg18/hg38> --all
 
-   Case-control analysis:
+   b) Case-control analysis:
    GRAPES wes --cases <bam_dir> --control <bam_dir> --outdir <output_dir> --bed <roi> --fasta <genome_fa> --genome <hg18/hg38> --all\n\n";
 
   print BOLD GREEN "   I/O" , RESET;
@@ -839,27 +837,27 @@ sub Help2 {
   print BOLD GREEN "   Options" , RESET, "\n";
 	print "   --all	              Perform all steps below
    --refdir                   Input directory where DB references will be stored.
-   --breakpoint	              Perform Breakpoint analysis
+   --breakpoint	              Perform Breakpoint analysis (default)
      --nobreakpoint	      Turn off breakpoint analysis
-   --extract	              Extract Depth, GC and Mappability
-   --offtarget	              Perform Off-target analysis
+   --extract	              Extract Depth, GC and Mappability (default)
+   --offtarget	              Perform Off-target analysis (default)
      --noofftarget	      Turn off offtarget analysis
-   --buildref	              Build a reference from a pool of samples
-   --callcnv	              Segment and call CNVs
+   --buildref	              Build a reference from a pool of samples (default)
+   --callcnv	              Segment and call CNVs (default)
      --nocallcnv	      Turn off CNV calling
    --normalize	              Normalize read depth. Choose from 'median', 'PCA'. (default='median')
-   --plotsingleexon	      Plot single exon CNVs
+   --plotsingleexon	      Plot single exon CNVs (default)
      --noplotcnv	      Turn off CNV plotting
-   --plotlargecnv	      Plot segmented CNVs
+   --plotlargecnv	      Plot segmented CNVs (default)
      --noplotcnv	      Turn off CNV plotting
-   --plotscatter	      Plot genome-wide CNV scatter plot
-   --vaf	              Include Variant-Allele Frequency (VAF) analysis
+   --plotscatter	      Plot genome-wide CNV scatter plot (default)
+   --vaf	              Include Variant-Allele Frequency (VAF) analysis (default)
      --novaf	              Turn off VAF analysis
    --samtools	              if --vaf set, perform SNV variant call with samtools (default)
    --freebayes	              if --vaf set, perform SNV variant call with freebayes
-   --annotate	              Annotate VCF
+   --annotate	              Annotate VCF (default)
      --noannotate	      Turn off VCF annotation
-   --filtervcf	              Filter low qual VCF entries
+   --filtervcf	              Filter low qual VCF entries (default)
      --nofiltervcf	      Turn off VCF filtering
    --reporthtml	              Write results to an HTML file (Only for gene panels)
      --noreporthtml	      Turn off report HTML creation

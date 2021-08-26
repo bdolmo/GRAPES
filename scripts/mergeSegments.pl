@@ -38,7 +38,7 @@ if (!$bed) {
 
 my $max_gap_size = 10e6;
 
-my $tmpBed = `cat $bed | grep -v 'chr\tstart\t'`; 
+my $tmpBed = `cat $bed | grep -v 'chr\tstart\t'`;
 chomp $tmpBed;
 my @arrBed = split (/\n/, $tmpBed);
 
@@ -75,7 +75,7 @@ foreach my $call_A (@arrInput) {
 
     my @ratios = ();
     my @SNR    = ();
-    my @SNRC   = (); 
+    my @SNRC   = ();
     my @zscores= ();
     my @genes  = ();
     my @MADS   = ();
@@ -87,13 +87,13 @@ foreach my $call_A (@arrInput) {
     next if $seen{$coord_A} > 1;
 
     push @genes,  $gene_A;
-    push @ratios, $ratio_A;
-    push @MADS, $MAD_A;
-    push @SNR, $SNR_A;
-    push @SNRC, $SNRC_A;  
-    push @zscores, $zscore_A;
-    push @GC, $GC_A;
-    push @MAP, $MAP_A;
+    push @ratios, $ratio_A if $ratio_A ne '.';
+    push @MADS, $MAD_A if $MAD_A ne '.';
+    push @SNR, $SNR_A if $SNR_A ne '.';
+    push @SNRC, $SNRC_A if $SNRC_A ne '.';
+    push @zscores, $zscore_A if $zscore_A ne '.';
+    push @GC, $GC_A if $GC_A ne '.';
+    push @MAP, $MAP_A if $MAP_A ne '.';
 
     my $index_A = first_index { /$tmp[0]\t$tmp[1]\t/ } @arrBed;
     my $outEnd = $end_A;
@@ -101,7 +101,7 @@ foreach my $call_A (@arrInput) {
     foreach my $call_B (@arrInput) {
 
         next if $call_A eq $call_B;
-        my ($chr_B, $start_B, $end_B, $regions_B, $cipos_A, $ciend_A, $svtype_B, 
+        my ($chr_B, $start_B, $end_B, $regions_B, $cipos_A, $ciend_A, $svtype_B,
         $gene_B, $ratio_B, $SNR_B, $SNRC_B, $MAD_B, $zscore_B, $GC_B, $MAP_B) = parseCall($call_B);
         my $gap_size = $start_B - $end_A;
 
@@ -114,16 +114,16 @@ foreach my $call_A (@arrInput) {
             $outEnd = $end_B;
             $regions+= $regions_B;
 
-            push @SNR, $SNR_B;
-            push @SNRC, $SNRC_B; 
+            push @SNR, $SNR_B if $SNR_B ne '.';
+            push @SNRC, $SNRC_B if $SNRC_B ne '.';
             push @genes, $gene_B;
-            push @ratios, $ratio_B;
-            push @MADS, $MAD_B; 
-            push @zscores, $zscore_B;
-            push @GC, $GC_B;
-            push @MAP, $MAP_B;
+            push @ratios, $ratio_B if $ratio_B ne '.';
+            push @MADS, $MAD_B if $MAD_B ne '.';
+            push @zscores, $zscore_B if $zscore_B ne '.';
+            push @GC, $GC_B if $GC_B ne '.';
+            push @MAP, $MAP_B if $MAP_B ne '.';
 
-            $seen{$coord_B}++; 
+            $seen{$coord_B}++;
             $chr_A   = $chr_B;
             $end_A   = $end_B;
             $index_A = first_index { /$chr_B\t$start_B\t/ } @arrBed;
@@ -159,31 +159,31 @@ foreach my $call_A (@arrInput) {
     my $out_SNRC = '.';
     if (@SNRC > 1){
         $out_SNRC = meanArray(@SNRC);
-    } 
+    }
     elsif (@SNRC == 1) {
         $out_SNRC = $SNRC_A;
-    } 
+    }
 
     my $out_zscores = '.';
     if (@zscores > 1) {
-        $out_zscores = meanArray (@zscores);    
-    } 
+        $out_zscores = meanArray (@zscores);
+    }
     elsif (@zscores == 1) {
         $out_zscores = $zscore_A;
     }
 
     my $out_GC = '.';
     if (@GC > 1) {
-        $out_GC = meanArray (@GC);    
-    } 
+        $out_GC = meanArray (@GC);
+    }
     elsif (@GC == 1) {
         $out_GC = $GC_A;
     }
 
     my $out_MAP = '.';
     if (@MAP > 1) {
-        $out_MAP = meanArray (@MAP);    
-    } 
+        $out_MAP = meanArray (@MAP);
+    }
     elsif (@MAP == 1) {
         $out_MAP = $MAP_A;
     }
@@ -191,7 +191,7 @@ foreach my $call_A (@arrInput) {
     my @uniq = uniq(@genes);
     my $gene_str = join(",", @uniq);
     my $size = $outEnd-$start_A;
-	my $copyNumber = int ($out_ratios*2+0.5);
+	  my $copyNumber = int ($out_ratios*2+0.5);
 
     print "$chr_A\t$start_A\t$outEnd\tIMPRECISE;SVTYPE=$svtype_A;CIPOS=$cipos_A;CIEND=$ciend_A;SVLEN=$size;GC=$out_GC;MAP=$out_MAP;GENE=$gene_str;REGIONS=$regions;RRD=$out_ratios;MADRD=$out_MAD;CN=$copyNumber;SNR=$out_SNR;SNRC=$out_SNRC;ZSCORE=$out_zscores\n";
 }

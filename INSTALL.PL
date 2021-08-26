@@ -295,7 +295,7 @@ if ( !-e "$currentDir/db/gencode.v27/gencode.v27.annotation.gff3.gz") {
 checkRpackages();
 
 sub checkRpackages {
-	
+
     print " INFO: Checking R packages\n";
     open R, ">", "Rinstaller.R" || die "ERROR: Unable to open Rinstaller\n";
     print R "is.installed <- function(mypkg){ is.element(mypkg, installed.packages()[,1])}\n";
@@ -361,6 +361,20 @@ print(\"Installing corrplot:\n\"); install.packages(\"corrplot\", repos = \"http
 }";
     print R "else {
 print(\"INFO: corrplot is already installed\n\")
+}\n";
+
+print R "if (!is.installed(\"tydir\")){
+print(\"Installing tydir:\n\"); install.packages(\"tydir\", repos = \"http://cran.us.r-project.org\")
+}";
+print R "else {
+print(\"INFO: tydir is already installed\n\")
+}\n";
+
+print R "if (!is.installed(\"data.table\")){
+print(\"Installing tydir:\n\"); install.packages(\"data.table\", repos = \"http://cran.us.r-project.org\")
+}";
+print R "else {
+print(\"INFO: data.table is already installed\n\")
 }\n";
 
     print R "if (!is.installed(\"gplots\")){

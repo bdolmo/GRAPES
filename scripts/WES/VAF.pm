@@ -29,12 +29,20 @@ sub annotateSnvVAF {
     my $sample  = shift;
     my $bedFile = shift;
 
+
+    if (!-e $bedFile) {
+      print " INFO: Skipping SNV annotation for sample $sample \n";
+      return;
+
+    }
+
     # Output is uncompressed VCF
     print " INFO: Calling SNVs on sample $sample (samtools)\n";
     my $cmd = "$::samtools mpileup -u -l $bedFile -f $::genome $bamFile $::devNullStderr ";
     $cmd .= "| $::bcftools call -mv --ploidy 1 -Ov  > $outDir/BAF_DATA/$sample.snv.vcf";
 
 	  print "$cmd\n" if $::verbose;
+
     system $cmd if !-e "$outDir/BAF_DATA/$sample.snv.vcf";
 
     open (IN, "<", "$outDir/BAF_DATA/$sample.snv.vcf") || die " ERROR: Unable to open $outDir/BAF_DATA/$sample.snv.vcf\n";
