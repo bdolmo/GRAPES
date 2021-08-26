@@ -10,6 +10,7 @@ bin/SeqLib/fermi-lite/** linguist-vendored
 bin/SeqLib/htslib/** linguist-vendored
 bin/SeqLib/SeqLib/** linguist-vendored
 bin/SeqLib/src/** linguist-vendored
+bin/htslib/** linguist-vendored
 
 *.pl linguist-detectable
 *.pm linguist-detectable
