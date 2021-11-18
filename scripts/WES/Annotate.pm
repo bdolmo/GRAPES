@@ -103,14 +103,9 @@ sub checkChrConvention  {
   my $inputVCF = shift;
   my $isChr = 0;
   my $fieldFound = 0;
-  if ( isGzipped($inputVCF) ) {
-      open (IN, "$::zcat $inputVCF | $::head -100 |")
-          || die "ERROR: Unable to open $inputVCF\n";
-  }
-  else {
-    open (IN, "$::cat $inputVCF | $::head -100 |")
-        || die "ERROR: Unable to open $inputVCF\n";
-  }
+
+  my $zcat = isGzipped($inputVCF) ? $::zcat : $::cat;
+  open (IN, "$zcat $inputVCF | $::head -100 |") || die "ERROR: Unable to open $inputVCF\n";
 
   while (my $line=<IN>) {
     chomp $line;
@@ -174,7 +169,9 @@ sub annotateGenes {
       }
   }
   close IN;
-  my $newHeader = rewriteHeader($inputVCF, "##INFO=<ID=GENES,Number=1,Type=String,Description=\"Gene name in HUGO notation\">");
+
+  my $GeneHeader = "##INFO=<ID=GENES,Number=1,Type=String,Description=\"Gene name in HUGO notation\">";
+  my $newHeader = rewriteHeader($inputVCF, $GeneHeader);
   my @newHeaderArr = split("\n", $newHeader);
 
   # Write new header
@@ -224,8 +221,8 @@ sub annotateGenes {
   rename $tmpVCF, $annotVCF;
 
   # Compress VCFs
-  Utils::compressFileBgzip($annotVCF);
   my $compressedVCF = $annotVCF . ".gz";
+  Utils::compressFileBgzip($annotVCF);
 
   # Index compressed VCF with tabix
   Utils::tabixIndex($compressedVCF, "vcf");
@@ -356,8 +353,8 @@ sub annotateGnomad {
     rename $tmpVCF, $annotVCF;
 
     # Compress VCFs
-    Utils::compressFileBgzip($annotVCF);
     my $compressedVCF = $annotVCF . ".gz";
+    Utils::compressFileBgzip($annotVCF);
 
     # Index compressed VCF with tabix
     Utils::tabixIndex($compressedVCF, "vcf");
@@ -479,7 +476,6 @@ sub calculateOverlap {
     my $chr   = shift;
     my $start = shift;
     my $end   = shift;
-
     my $chrom = shift;
     my $st    = shift;
     my $ed    = shift;

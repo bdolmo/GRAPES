@@ -26,7 +26,7 @@ sub exportCnvXLS  {
   $worksheet->write( $row, 1, 'Start', $format);
   $worksheet->write( $row, 2, 'End', $format);
   $worksheet->write( $row, 3, 'Type', $format);
-  $worksheet->write( $row, 4, 'Breakpoint supp.', $format);
+  $worksheet->write( $row, 4, 'Break supp.', $format);
   $worksheet->write( $row, 5, 'CN', $format);
   $worksheet->write( $row, 6, 'N Rois', $format);
   $worksheet->write( $row, 7, 'Flanking rois', $format);
@@ -118,6 +118,7 @@ sub exportCnvXLS  {
         $worksheet->write( $row, 7, $flankRois);
         $worksheet->write( $row, 8, $genes);
         $worksheet->write( $row, 9, $ratio);
+
         if ($score ne ".") {
           if ($score <= 0.95 && $score > 0.90) {
             my $format1  = $workbook->add_format();

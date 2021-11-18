@@ -8,7 +8,17 @@ use List::Util qw(min max);
 use Parallel::ForkManager;
 use Sort::Key::Natural qw(natsort);
 
+##########################
+sub macs2PeakCalling {
+	my $inputBam   = shift;
+	my $sampleName = shift;
+	my $outputDir  = shift;
 
+	my $orfanPeaks = $outputDir . "/" . "$sampleName.orfanPeaks";
+
+  my $cmd = "$::macs2 callpeak -t $inputBam -n $orfanPeaks $::devNull";
+	system $cmd;
+}
 
 ##########################
 sub appendOfftargetMetrics2Summary {
@@ -38,7 +48,7 @@ sub appendOfftargetMetrics2Summary {
 
 	if (-e "$::outDir/summary_metrics.log") {
 
-    	( my $tmpSummary = "$::outDir/summary_metrics.log" ) =~ s/\.log/\.tmp.log/;
+    ( my $tmpSummary = "$::outDir/summary_metrics.log" ) =~ s/\.log/\.tmp.log/;
 
 		open ( IN, "<", "$::outDir/summary_metrics.log") || die " ERROR: Unable to open $::outDir/summary_metrics.log\n";
 		open ( TMP, ">", $tmpSummary ) || die " ERROR: Unable to open $tmpSummary\n";
@@ -73,7 +83,8 @@ sub preProcess {
  my $offtargetDir= shift;
 
  # Creating file with regions to be excluded (padding coding exons to get rid of residual coverage from these regions & centromere concatenation)
- my $cmd = "$::awk '{if (\$2<\$3) {print \$1\"\t\"\$2-1000\"\t\"\$3+1000\"\t\"\$4} else if (\$2>\$3) {print \$1\"\t\"\$2+1000\"\t\"\$3-1000\"\t\"\$4}}' $bed > $outDir/OFF_TARGET/ontarget_paded_400bp.bed";
+ my $cmd = "$::awk '{if (\$2<\$3) {print \$1\"\t\"\$2-1000\"\t\"\$3+1000\"\t\"\$4}".
+ " else if (\$2>\$3) {print \$1\"\t\"\$2+1000\"\t\"\$3-1000\"\t\"\$4}}' $bed > $outDir/OFF_TARGET/ontarget_paded_400bp.bed";
  system($cmd);
 
  $cmd = "$::cat $outDir/OFF_TARGET/ontarget_paded_400bp.bed $::centromeres $::genomePatches ";
@@ -86,7 +97,8 @@ sub preProcess {
  # Complementary file generation for the peak detection step
  if (!$::hasChr) {
 	$cmd = "cat $::chrFile | perl -e -p \"s/chr//\" | $::bedtools complement -i $outDir/OFF_TARGET/ontarget_paded_400bp_centromers_patches.bed -g stdin ";
- 	$cmd.= " | $::awk '{ print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$3-\$2}' | $::awk '{if(\$4>=1) print \$1\"\t\"\$2\"\t\"\$3\"\tComplement\"}' > $outDir/OFF_TARGET/offtarget_unprocessed.bed";
+ 	$cmd.= " | $::awk '{ print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$3-\$2}' "
+	. "| $::awk '{if(\$4>=1) print \$1\"\t\"\$2\"\t\"\$3\"\tComplement\"}' > $outDir/OFF_TARGET/offtarget_unprocessed.bed";
  }
  else {
  	$cmd = "$::bedtools complement -i $outDir/OFF_TARGET/ontarget_paded_400bp_centromers_patches.bed -g $::chrFile ";
@@ -121,26 +133,24 @@ sub removePeaks {
 	if (!-e "$offtargetDir/$sample.narrowPeak.format.bed") {
 
 		# Get an sliced BAM from off-target regions
-		print " INFO: Processing $sample bam file\n";
-	 	my $cmd ="$::samtools view -b -L $offtargetDir/offtarget_unprocessed.bed $bam > $offtargetDir/$sample.offTarget.bam";
+		print " INFO: Removing off-target peaks on $sample\n";
+		my $offtargetBam = $offtargetDir . "/" . "$sample.offTarget.bam";
+	 	my $cmd ="$::samtools view -b -L $offtargetDir/offtarget_unprocessed.bed $bam > $offtargetBam";
 	 	print "$cmd\n" if $::verbose;
-		system($cmd);
+		system($cmd) if !-e $offtargetBam;
 
 		# Index sliced BAM file
-	 	$cmd = "$::samtools index $offtargetDir/$sample.offTarget.bam";
-	 	print "$cmd\n" if $::verbose;
-		system($cmd);
+		Utils::indexBam( $offtargetBam );
 
 		# Identify off-target peaks using MACS2
-		print " INFO: Offtarget peak calling for $sample.offTarget.bam file\n";
-	 	$cmd = "$::macs2 callpeak -t $offtargetDir/$sample.offTarget.bam -n $offtargetDir/$sample.orfanPeaks $::devNull";
-	 	print "$cmd\n" if $::verbose;
-		system($cmd);
+		macs2PeakCalling($offtargetBam, $sample, $offtargetDir);
+
+		my $narrowPeaks    = $offtargetDir . "/" . "$sample.orfanPeaks_peaks.narrowPeak";
+		my $narrowPeaksFmt = $offtargetDir . "/" . "$sample.narrowPeak.format.bed";
 
 		# Formatting narrowPeak files
-		if (-e "$offtargetDir/$sample.orfanPeaks_peaks.narrowPeak") {
-			$cmd = "$::cat $offtargetDir/$sample.orfanPeaks_peaks.narrowPeak ";
-			$cmd.= " | $::awk '{print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$4\";\"\$5}' > $offtargetDir/$sample.narrowPeak.format.bed";
+		if (-e $narrowPeaks) {
+			$cmd = "$::cat $narrowPeaks | $::awk '{print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$4\";\"\$5}' > $narrowPeaksFmt";
 			system($cmd);
 		}
 		else {
@@ -153,9 +163,7 @@ sub removePeaks {
  $::pm->wait_all_children;
  unlink (glob ("$offtargetDir/*summits.bed"));
  unlink (glob ("$offtargetDir/*peaks.xls"));
- #unlink (glob ("$offtargetDir/*narrowPeak.format.bed"));
  unlink (glob ("$offtargetDir/*Peaks_model.r"));
-
 }
 
 ##########################
@@ -169,25 +177,26 @@ sub createBins {
  my @narrowPeaksFiles = glob ("$offtargetDir/*narrowPeak.format.bed");
 
  if (!@narrowPeaksFiles) {
+	 print "mierda\n";
 	foreach my $sample ( sort keys %::sampleHash) {
 		$::sampleHash{$sample}{READSOFFTARGET} = 0;
 		$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'no';
 	}
 	return 1;
  }
+ my $mergedNarrowPeaksTmp = $offtargetDir . "/" . "$::outName.MergedNarrowPeaks.tmp.bed";
 
- # Adding some padding coordinates at each peak identified
+ # Adding 400bp padding coordinates at each peak identified
  my $cmd = "$::cat @narrowPeaksFiles | $::sort -V -u " .
  " | $::awk '{if (\$2<\$3) {print \$1\"\t\"\$2-400\"\t\"\$3+400\"\t\"\"mergedPaddedNarrowPeaks\"}" .
  " else if (\$2>\$3) {print \$1\"\t\"\$2+400\"\t\"\$3-400\"\t\"\$4\"\t\"\"mergedPaddedNarrowPeaks\"}}' - ";
- $cmd.= " | $::grep -v '\_'> $offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed";
+ $cmd.= " | $::grep -v '\_'> $mergedNarrowPeaksTmp";
  system($cmd);
 
+ my $mergedNarrowPeak = $offtargetDir . "/" . "$::outName.MergedNarrowPeaks.bed";
  # Deleting inconsistent coordinate entries when poiting out of the chromosome length
- open (IN, "<", "$offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed")
- 	|| die " ERROR: Unable to open $offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed\n";
- open (OUT, ">", "$offtargetDir/$::outName.MergedNarrowPeaks.bed")
- 	|| die " ERROR: Unable to open $offtargetDir/$::outName.MergedNarrowPeaks.bed\n";
+ open (IN, "<", $mergedNarrowPeaksTmp) || die " ERROR: Unable to open $mergedNarrowPeaksTmp\n";
+ open (OUT, ">", $mergedNarrowPeak) || die " ERROR: Unable to open $mergedNarrowPeak\n";
  while (my $line=<IN>) {
 	chomp $line;
 	my @tmp = split (/\t/, $line);
@@ -201,14 +210,13 @@ sub createBins {
  }
  close IN;
  close OUT;
- unlink ("$offtargetDir/$::outName.MergedNarrowPeaks.tmp.bed");
+ unlink $mergedNarrowPeaksTmp;
 
  # Merging patched regions and exclusion centromere regions into a single file
- $cmd  = "$::cat $offtargetDir/$::outName.MergedNarrowPeaks.bed $::genomePatches $::centromeres";
+ $cmd  = "$::cat $mergedNarrowPeak $::genomePatches $::centromeres";
  if (!$::hasChr)  {
 	 $cmd.= " | perl -e -p \"s/chr//\" ";
  }
-
  $cmd .= " | $::sort -V -u | $::awk '\$1 !~ /_/ {print \$0}' - > $offtargetDir/offtarget_centromeres_patches_peaks.bed";
  print "$cmd\n" if $::verbose;
  system($cmd);
@@ -226,21 +234,19 @@ sub createBins {
  print "$cmd\n" if $::verbose;
  system($cmd);
 
- my @offbams = glob("$offtargetDir/*bam");
- open (TMP, ">", "$::outDir/offtarget_info.tmp.txt") || die " ERROR: Unable to open $::outDir/offtarget_info.tmp.txt\n";
-
+ my $offtargetInfoTmp = $::outDir . "/" . "offtarget_info.tmp.txt";
+ open (TMP, ">", $offtargetInfoTmp) || die " ERROR: Unable to open $offtargetInfoTmp\n";
  foreach my $sample ( sort keys %::sampleHash) {
 
-    my $bam = "$offtargetDir/$sample.offTarget.bam";
-
+    my $bam = $offtargetDir . "/" . "$sample.offTarget.bam";
 		if (-e $bam ) {
-			#my $counts = Utils::readCountsFromBamIdx($bam);
-			my $counts = `$::samtools view -c $bam -L $offtargetDir/offtarget_centromeres_patches_peaks_negative.bed`;
-			chomp $counts;
+			my $counts = Utils::getTotalCountsBam($bam,
+				"$offtargetDir/offtarget_centromeres_patches_peaks_negative.bed" );
 
 			# Defnining offtarget window size based on this empirically derived rule.
-			# May be worth to add a more advanced method: https://academic.oup.com/bioinformatics/article/30/13/1823/2422194
-			$::sampleHash{$sample}{OFFTARGETBIN}   = $counts > 0 ? int ( (4000000 *150000)/$counts ) : 10e6;
+			$::sampleHash{$sample}{OFFTARGETBIN}
+				= $counts > 0 ? int ( (4000000 *150000)/$counts ) : 10e6;
+
 			if ($::sampleHash{$sample}{OFFTARGETBIN} < 50000) {
 				$::sampleHash{$sample}{OFFTARGETBIN} = 50000;
 			}
@@ -251,16 +257,17 @@ sub createBins {
 			my $binSizeHuman= Utils::number2human($::sampleHash{$sample}{OFFTARGETBIN});
 			print " INFO: $sample off-target reads: $countsHuman\toff-target bin size: $binSizeHuman\n";
 
-			#estimateWindowSize($offtargetDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN}, $bam);
-			my $sample_offtarget_bed
-				= createPseudowindows($offtargetDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN});
+			# my $sample_offtarget_bed
+			# 	= createPseudowindows($offtargetDir, $sample, $::sampleHash{$sample}{OFFTARGETBIN});
 		}
 		else {
-			$::sampleHash{$sample}{READSOFFTARGET} = 0;
+			print " INFO: Skipping off-target analysis for sample $sample\n";
+			$::sampleHash{$sample}{READSOFFTARGET}    = 0;
 			$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'no';
 		}
-
  }
+
+ # Calculate median bin size from all samples
  my @binArray = ();
  for my $sample (sort keys %::sampleHash) {
 	 if ($::sampleHash{$sample}{OFFTARGETBIN}) {
@@ -271,11 +278,11 @@ sub createBins {
  if ($medianBinSize) {
 	 print " INFO: Median off-target bin size: " . Utils::number2human($medianBinSize) . "\n";
  }
- my $globalOfftargetBed="";
+
+ # Create a global offtarget bed file
  if ($medianBinSize) {
-	 	$globalOfftargetBed = createPseudowindows($offtargetDir, "global", $medianBinSize)
+	 	$::HoF{GLOBAL_OFFTARGET_BED} = createPseudowindows($offtargetDir, "global", $medianBinSize)
  }
- #exit;
 
  #$::pm->wait_all_children;
  close TMP;
@@ -283,7 +290,7 @@ sub createBins {
  # Append sample offtarget info to main summary file
  appendOfftargetMetrics2Summary("$::outDir/offtarget_info.tmp.txt");
 
- unlink("$::outDir/offtarget_info.tmp.txt");
+ unlink($offtargetInfoTmp);
  unlink("$offtargetDir/ontarget_paded_400bp.bed");
  unlink("$offtargetDir/offtarget_unprocessed.bed");
  #unlink("$outDir/offTarget.pseudowindowed.bed");
@@ -306,7 +313,6 @@ sub estimateWindowSize {
 
 	my $off_bed = createPseudowindows($outDir, $sample, $binSize);
 	my $ini_std = caculateRatioStd($off_bed, "$outDir/$sample.offtarget.coordinates.bed");
-	#print "$sample\t$binSize\t$ini_std\n";
 
 	if ($ini_std > 0.2) {
 		my $maxBinSize = $binSize + (50000*5);

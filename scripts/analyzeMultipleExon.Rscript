@@ -1,0 +1,24 @@
+suppressPackageStartupMessages({
+    library(tidyr)
+    library(dplyr)
+    library(argparse)
+    library(GenomicRanges)
+    library(reshape2)
+    library(data.table)
+    library(ggplot2)
+})
+
+parser<-ArgumentParser(description="Analyze multiple-exon CNV")
+parser$add_argument('--seg_file', dest='seg_file', type="character", help="segmented data file")
+parser$add_argument('--ratio_file', dest='ratio_file', type="character", help="ratio data file")
+
+args <- parser$parse_args()
+
+# Getting arguments
+seg_file <- args$seg_file
+ratio_file <- args$ratio_file
+
+seq_file_df <- read.table(seg_file, sep="\t", header=F, fill=T, check.names=FALSE)
+ratio_file_df <- read.table(ratio_file, sep="\t", header=T, check.names=FALSE)
+
+summary(seq_file_df)

@@ -26,7 +26,7 @@ use Sort::Key::Natural qw(natsort);
 # }
 
 ###############################
-sub extractGc {
+sub annotateGC {
   my $inputBed  = shift;
   my $outputBed = shift;
 
@@ -36,8 +36,8 @@ sub extractGc {
     chomp $line;
     next if $line=~/^#/;
     my @tmp = split("\t", $line);
-    my $gc  = sprintf "%.3f",(100*$tmp[6]);
-    print OUT join("\t", @tmp[0..4]) . "\t" . $gc . "\n";
+    my $gc  = sprintf "%.3f",(100*$tmp[5]);
+    print OUT join("\t", @tmp[0..3]) . "\t" . $gc . "\n";
   }
   close IN;
   close OUT;
@@ -87,27 +87,34 @@ sub addOfftargetRegionName {
 sub extractOfftargetCounts {
 
 	my $bamDir = shift;
-
 	my @offtargetBams= glob("$bamDir/*bam");
 
-	foreach my $bam (@offtargetBams) {
+  my $offtargetGc = $::HoF{GLOBAL_OFFTARGET_BED};
+  $offtargetGc =~s/.bed/.gc.bed/;
 
-		#my $pid = $::pm -> start() and next;
+  my $offtargetGcMap  = $offtargetGc;
+  $offtargetGcMap =~s/.bed/.map.bed/;
+
+  # Annotate GC content
+  if (!-e $offtargetGc)  {
+    $offtargetGc = annotateGC( $::HoF{GLOBAL_OFFTARGET_BED}, $offtargetGc );
+  }
+  # Annotate mappability
+  if (!-e $offtargetGcMap)  {
+    $offtargetGcMap = annotateMappabilityOfftarget( $offtargetGc,
+      $offtargetGcMap );
+  }
+
+	foreach my $bam (@offtargetBams) {
 
 		my $sample = basename($bam);
 		$sample =~s/.offTarget.bam//;
 
     # offtarget regions bed
-    my $offtargetBed          = "$bamDir/$sample.offtarget.bed";
-
+    #my $offtargetBed          = "$bamDir/$sample.offtarget.bed";
+    my $offtargetBed          = $::HoF{GLOBAL_OFFTARGET_BED};
     # offtarget regions bed with counts at 4th column
     my $offtargetTmpCounts    = "$bamDir/$sample.offtarget_counts.tmp.bed";
-
-    # offtarget regions bed with gc at 5th column
-    my $offtargetCountsGc     = "$bamDir/$sample.offtarget_counts_gc.bed";
-
-    # offtarget regions bed with mappability at 5th column
-    my $offtargetCountsGcMap  = "$bamDir/$sample.offtarget_counts_gc_map.bed";
 
     # joined smaller regions that belong to the parent window
     my $offtargetJoinedCountsGz = "$bamDir/$sample.offtarget_joined_counts.bed.gz";
@@ -115,8 +122,8 @@ sub extractOfftargetCounts {
 
 		# Skipping off-target analysis on samples with less than specified off-target reads
 		if ($::sampleHash{$sample}{READSOFFTARGET} < $::minOfftargetReads) {
-			print " WARNING: Skipping off-target analysis on $sample (low num: $::sampleHash{$sample}{READSOFFTARGET})\n";
-			$::pm->finish;
+			print " INFO: Skipping off-target analysis on $sample (low num: $::sampleHash{$sample}{READSOFFTARGET})\n";
+			#$::pm->finish;
 			#next;
 		}
 		else {
@@ -127,68 +134,28 @@ sub extractOfftargetCounts {
 
 			if ( -s $offtargetBed ) {
 
-				# extract mean coverage per region using Mosdepth
-				#my $cmd = "$::mosdepth -t $::threads -n -x --by $off_bed $bamDir/$sample.offtarget $bam";
-				#print "$cmd\n" if $::verbose;
-				#system $cmd;
-				# Make mosdepth output files compatible with downstream processes
-				#convertMosdepth2Grapes($sample);
-				# Extract read counts across all off-target regions
-				#my $cmd = "$::offtargetExtractor $bam $::genome $off_bed > $bamDir/$sample.offtarget_counts.tmp.bed";
-     		#system $cmd;
         if (!-e $offtargetTmpCounts) {
-
-          # Using MegaDepth to extract coverage
-          #my $cmd = "$::megadepth $bam --threads $::threads --annotation $offtargetBed $::devNull > $offtargetTmpCounts ";
-          #system $cmd;
-
-          my $cmd = "$::offtargetExtractor $bam $::genome $offtargetBed > $offtargetTmpCounts";
+          my $cmd = "$::offtargetExtractor $bam $::genome $offtargetGcMap > $offtargetTmpCounts";
+          print "$cmd\n";
           system $cmd;
-
-          # Megadepth omits the 4th column from our bed file, so we have to add it again
-          #addOfftargetRegionName( $offtargetBed, $offtargetTmpCounts );
-        }
-
-				# Extract GC content
-        if (!-e $offtargetCountsGc)  {
-          extractGc( $offtargetTmpCounts, $offtargetCountsGc );
-        }
-
-				#$cmd = "$::bedtools nuc -fi $::genome -bed $bamDir/$sample.offtarget_counts.tmp.bed |";
-				#$cmd.= " $::cut -f 1,2,3,4,5,6 > $bamDir/$sample.offtarget_counts_nomap.bed";
-        #$cmd.= " $::awk '{ print \$1\"\t\"\$2\"\t\"\$3\"\t\"\$4\"\t\"\$6\"\t\"\$5 }' > $bamDir/$sample.offtarget_counts_nomap.bed";
-				#print "$cmd\n" if $::verbose;
-				#system $cmd if !-s "$bamDir/$sample.offtarget_counts_gc.bed";
-
-				# Remove header
-				#$cmd = "$::sed -i '1d' $bamDir/$sample.offtarget_counts_gc.bed";
-				#system $cmd;
-
-				# Annotate mappability of every window
-        if (!-e $offtargetCountsGcMap)  {
-				  extractMappabilityOfftarget( $offtargetCountsGc, $offtargetCountsGcMap );
         }
 
 				# Joining single pieces that come from the same window.
 				# This is because we split each defined window based on surrounding peak/ROIs
         if (!-e $offtargetJoinedCounts) {
-				  joinBins( $offtargetCountsGcMap, $offtargetJoinedCounts );
+				  joinBins( $offtargetTmpCounts, $offtargetJoinedCounts );
         }
 
         # Deleting temoporary files
 				unlink("$bamDir/$sample.offtarget.regions.bed.gz");
 				unlink("$bamDir/$sample.offtarget.regions.bed.gz.csi");
-				unlink($offtargetCountsGc);
-				unlink($offtargetTmpCounts);
+				# unlink($offtargetCountsGc);
+				#unlink($offtargetTmpCounts);
 			}
 		}
-		#else {
-	#		print " INFO: Skipping Offtarget count extraction of sample $sample\n";
-		#}
-		#$::pm->finish;
  	}
-	#$::pm->wait_all_children;
- }
+  #exit;
+}
 
 ###############################
 sub joinBins {
@@ -196,10 +163,6 @@ sub joinBins {
 	my $inputBed  = shift;
 	my $outputBed = shift;
 
-
-	# my $name = basename($countFile);
-	# $name =~s/.offtarget_counts_gc_map/.offtarget_joined_counts.bed/;
-	# my $output = "$outputDir/$name";
   my %Regions = ();
 	my $min = 10e20;
 	my $max = 0;
@@ -208,7 +171,7 @@ sub joinBins {
 	open (IN, "<", $inputBed) || die " ERROR: unable to open $inputBed\n";
 	while (my $line=<IN>) {
 		chomp $line;
-
+    #chr1	843529	1084543	pdwindow_1;piece_16	61.829	96.083	58
 		my @tmp = split (/\t/, $line);
 		my @info = split (";", $tmp[3]);
 		my $windowName = $info[0];
@@ -217,17 +180,14 @@ sub joinBins {
 			$min = 10e20;
 			$max = 0;
 		}
-    #chr1	543223	663904	pdwindow_1;piece_9	1587	0.585105	16.0508076532346
-    #chr1	1135298	1163664	912	0.647783	97.53934184
-    #chr1	1164741	1228648	5746	12711	0.389316	96.311773993249
 
 		$seen{$windowName}++;
 		$Regions{$windowName}{CHR} = $tmp[0];
 
 		my $length = $tmp[2]-$tmp[1];
-		$Regions{$windowName}{COUNTS}+=$tmp[4];
-		$Regions{$windowName}{MAP}+=($tmp[6]*$length);
-		$Regions{$windowName}{GC}+=($tmp[5]*$length);
+		$Regions{$windowName}{COUNTS}+=$tmp[-1];
+		$Regions{$windowName}{MAP}+=($tmp[5]*$length);
+		$Regions{$windowName}{GC}+=($tmp[4]*$length);
 		$Regions{$windowName}{EFFECTIVE_LENGTH}+=$length;
 
 		if ($tmp[1] < $min) {
@@ -256,17 +216,15 @@ sub joinBins {
  }
 
 ###############################
-sub extractMappabilityOfftarget {
+sub annotateMappabilityOfftarget {
 
   my $inputBed  = shift;
   my $outputBed = shift;
 
   my $outputDir = dirname($outputBed);
-  my $sample = basename($inputBed);
-  $sample =~s/.offtarget_counts_gc.bed//;
+  my $sample    = basename($inputBed);
 
-  my $mappability = "$outputDir/$sample.offtarget.mappability.bed";
-  #my $outfile     = "$outputDir/$sample.offtarget_counts.bed";
+  my $mappability = $outputDir . "/" . "mappability.offtarget.bed";
 
   if (!-e $inputBed) {
 	  print " WARNING: non existent $inputBed. Skipping mappability extraction\n";
@@ -293,10 +251,10 @@ sub extractMappabilityOfftarget {
   	system($cmd);
 
   	# File editing
-  	$cmd = "$::cut -f 5 $mappability > $outputDir/only_mapp.$sample.txt";
+  	$cmd = "$::cut -f 5 $mappability > $outputDir/only_mapp.txt";
     system $cmd;
 
-  	$cmd = "$::paste $inputBed $outputDir/only_mapp.$sample.txt > $outputBed";
+  	$cmd = "$::paste $inputBed $outputDir/only_mapp.txt > $outputBed";
     system $cmd;
 
   	open (MAP, "<", $outputBed) || die " ERROR: Cannot open $outputBed\n";
@@ -308,15 +266,16 @@ sub extractMappabilityOfftarget {
   		$::ExonFeatures{$coordinate}{MAP} = $map;
   	}
   	close MAP;
-  	unlink("$outputDir/only_mapp.$sample.txt");
+  	unlink("$outputDir/only_mapp.txt");
   }
   else {
 	   print " INFO: skipping Mappability extraction. File was already created\n";
   }
+  return $outputBed;
 }
 
 ###############################
- sub getMappability {
+sub getMappability {
 
   my $bedfile      = shift;
   my $type         = shift;

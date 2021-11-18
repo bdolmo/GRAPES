@@ -11,76 +11,173 @@ use Parallel::ForkManager;
 use List::MoreUtils qw(uniq);
 use Sort::Key::Natural qw(natsort);
 
-  #####################################################################################
+ #####################################################################################
  #	  Calculate Copy Number Ratios for the merged file for ON and OFF target         #
  #####################################################################################
- sub calculateRatioOfftarget {
 
-	my $offtargetDir = shift;
+ sub calculateRatioOfftargetBatch {
 
-	foreach my $sample (natsort keys %::sampleHash ) {
+   my %HoData = ();
+   my @validSamples = ();
 
-		# Skipping ratio calculation when not applicable
-		next if exists $::referenceHash{$sample};
-		next if $::sampleHash{$sample}{PERFORM_OFFTARGET} eq "NO";
-		next if !-e "$offtargetDir/$sample.normalized.bed.gz";
+   foreach my $sample (natsort keys %::sampleHash)  {
+     if ($::sampleHash{$sample}{PERFORM_OFFTARGET} eq 'NO') {
+       next;
+     }
+     push @validSamples, $sample;
+     my $normalizedCounts = $::offtargetDir . "/" . "$sample.normalized.bed.gz";
+     open NORM, "$::zcat $normalizedCounts |";
+     while (my $line=<NORM>) {
+       chomp $line;
+       next if $line =~/^#/;
+       #chr1	578745	771659	pdwindow_4;piece_1	0.417414	26.1383443952743	275
+ 			 my @tmp = split (/\t/, $line);
+ 			 my $chr   = $tmp[0];
+ 			 my $start = $tmp[1];
+ 			 my $end   = $tmp[2];
+ 			 my $info  = $tmp[3];
+       my $mappability = $tmp[5];
+       my $gc    = $tmp[4];
+ 			 my $counts= $tmp[7];
 
-		open RATIOS, ">", "$offtargetDir/$sample.ratios.txt";
-		open NORMALIZED, "$::zcat $offtargetDir/$sample.normalized.bed.gz |";
+ 			 my $coord = "$chr\t$start\t$end";
+       #next if $::filteredRois{$coord};
+       #next if $mappability < 90;
 
-		my @ratios = ();
-	 	while (my $line=<NORMALIZED>) {
-			 chomp $line;
-			#chr1	578745	771659	pdwindow_4;piece_1	0.417414	26.1383443952743	275
-			my @tmp = split (/\t/, $line);
-			my $chr   = $tmp[0];
-			my $start = $tmp[1];
-			my $end   = $tmp[2];
-			my $info  = $tmp[3];
-      my $mappability = $tmp[5];
-      my $gc = $tmp[4];
+       $HoData{$coord}{REGION} = $info;
+       $HoData{$coord}{MAPPABILITY} = $mappability;
+       $HoData{$coord}{GC} = $gc;
+       $HoData{$coord}{SAMPLE}{$sample}{COUNTS} = $counts;
+     }
+     close NORM;
 
-			my $counts= $tmp[7];
-			my $coord = "$chr\t$start\t$end";
+   }
+   my $offtargetRatio = $::offtargetDir . "/" . "global.offtarget.ratios.bed";
+   #open OUT, ">", $offtargetRatio or die " ERROR: Unable to open $offtargetRatio\n";
+   #print OUT "chr\tstart\tend\tinfo\t". join("\t", @validSamples) . "\n";
+   foreach my $coord (natsort keys %HoData) {
+     #print OUT "$coord\t$HoData{$coord}{REGION}\t";
+     my @ratioArray = ();
 
-			next if $::filteredRois{$coord};
+     foreach my $sample (sort keys %{$HoData{$coord}{SAMPLE}}) {
+        my @countArray = ();
+        foreach my $sample2 (sort keys %{$HoData{$coord}{SAMPLE}}) {
+          next if $sample eq $sample2;
+          push @countArray, $HoData{$coord}{SAMPLE}{$sample2}{COUNTS};
+        }
+        my $medianCounts = Utils::medianArray(@countArray);
 
-			$::ExonFeatures{$coord}{MAP} = $mappability;
-			$::ExonFeatures{$coord}{GC} = int ($tmp[4]*100);
+        if($medianCounts < 30) {
+          #$::filteredRois{$coord}++;
+        }
+        my $ratio = $medianCounts > 0 ? sprintf "%.3f",$HoData{$coord}{SAMPLE}{$sample}{COUNTS}/$medianCounts : 0;
+        $HoData{$coord}{SAMPLE}{$sample}{RATIO} = $ratio;
+        push @ratioArray, $ratio;
+     }
+     #print OUT join("\t", @ratioArray) . "\n";
+   }
+   #close OUT;
 
-			# Skipping low mappability windows.
-			next if $mappability < 90;
-      my $ratio;
+   foreach my $sample ( natsort keys %::sampleHash ) {
 
-			# Skipping low mappability windows.
-			if ( isChrX($chr) ) {
-				$ratio = sprintf "%.3f", $counts/$::sampleHash{$sample}{OFFTARGET_NORMALIZED_X};
-			}
-			else {
-				$ratio = sprintf "%.3f", $counts/$::sampleHash{$sample}{OFFTARGET_NORMALIZED};
-			}
+     my $sampleRatioFile =  $::offtargetDir . "/" . "$sample.ratios.txt";
+     my @ratios = ();
+     open RATIOS, ">", $sampleRatioFile;
+     foreach my $coord (natsort keys %HoData) {
+       #next if exists $::filteredRois{$coord};
+       #next if !exists $HoData{$coord}{SAMPLE}{$sample}{RATIO};
+       my $region= $HoData{$coord}{REGION};
+       my $gc    = $HoData{$coord}{GC};
+       my $map   = $HoData{$coord}{MAPPABILITY};
+       my $ratio = $HoData{$coord}{SAMPLE}{$sample}{RATIO};
+       push @ratios, $ratio;
+       print RATIOS "$coord\t$region\t$gc\t$map\t$ratio\t5\n";
+     }
+     close RATIOS;
 
-  			if ( $chr !~ "Y" ) {
-				push @ratios, $ratio;
-			}
-			print RATIOS "$chr\t$start\t$end\t$info\t$ratio\t5\n";
-		}
-		close RATIOS;
-		$::sampleHash{$sample}{OFFTARGET_MEAN_RATIO}= sprintf "%.3f", Utils::meanArray(@ratios);
-		$::sampleHash{$sample}{OFFTARGET_SD_RATIO}  = sprintf "%.3f", Utils::std(@ratios);
+     # gzip ratios file
+     Utils::compressFile($sampleRatioFile);
 
-		if ($::sampleHash{$sample}{OFFTARGET_SD_RATIO} < $::minOfftargetSD) {
-			$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'YES'
-		}
-		else {
-			$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'NO';
-		}
+     $::sampleHash{$sample}{OFFTARGET_MEAN_RATIO}
+      = sprintf "%.3f", Utils::meanArray(@ratios);
+		 $::sampleHash{$sample}{OFFTARGET_SD_RATIO}
+      = sprintf "%.3f", Utils::std(@ratios);
 
-		# compress file
-		Utils::compressFile("$offtargetDir/$sample.ratios.txt");
+		 if ($::sampleHash{$sample}{OFFTARGET_SD_RATIO} < $::minOfftargetSD) {
+			 $::sampleHash{$sample}{PERFORM_OFFTARGET} = 'YES'
+		 }
+		 else {
+			 $::sampleHash{$sample}{PERFORM_OFFTARGET} = 'NO';
+		 }
+   }
+ }
 
-		print " INFO: $sample mean ratio: $::sampleHash{$sample}{OFFTARGET_MEAN_RATIO} sd: $::sampleHash{$sample}{OFFTARGET_SD_RATIO}\n";
-	}
+ sub calculateRatioOfftargetSingleSample {
+
+  	my $offtargetDir = shift;
+  	foreach my $sample (natsort keys %::sampleHash ) {
+
+  		# Skipping ratio calculation when not applicable
+  		next if exists $::referenceHash{$sample};
+  		next if $::sampleHash{$sample}{PERFORM_OFFTARGET} eq "NO";
+  		next if !-e "$offtargetDir/$sample.normalized.bed.gz";
+
+  		open RATIOS, ">", "$offtargetDir/$sample.ratios.txt";
+  		open NORMALIZED, "$::zcat $offtargetDir/$sample.normalized.bed.gz |";
+
+  		my @ratios = ();
+  	 	while (my $line=<NORMALIZED>) {
+  			 chomp $line;
+         #chr1	2457638	5045980	pdwindow_2	98.171	30.368	1243.735
+
+  			#chr1	578745	771659	pdwindow_4;piece_1	0.417414	26.1383443952743	275
+  			my @tmp = split (/\t/, $line);
+  			my $chr   = $tmp[0];
+  			my $start = $tmp[1];
+  			my $end   = $tmp[2];
+  			my $info  = $tmp[3];
+        my $mappability = $tmp[4];
+        my $gc    = $tmp[5];
+  			my $counts= $tmp[-1];
+  			my $coord = "$chr\t$start\t$end";
+
+  			#next if $::filteredRois{$coord};
+
+  			$::ExonFeatures{$coord}{MAP} = $mappability;
+  			$::ExonFeatures{$coord}{GC} = $gc;
+
+  			# Skipping low mappability windows.
+  			next if $mappability < 90;
+
+        my $ratio;
+  			if ( isChrX($chr) ) {
+  				$ratio = sprintf "%.3f", $counts/$::sampleHash{$sample}{OFFTARGET_NORMALIZED_X};
+  			}
+  			else {
+  				$ratio = sprintf "%.3f", $counts/$::sampleHash{$sample}{OFFTARGET_NORMALIZED};
+  			}
+
+    		if ( $chr !~ "Y" ) {
+  				push @ratios, $ratio;
+  			}
+  			print RATIOS "$chr\t$start\t$end\t$info\t$ratio\t5\n";
+  		}
+  		close RATIOS;
+  		$::sampleHash{$sample}{OFFTARGET_MEAN_RATIO}= sprintf "%.3f", Utils::meanArray(@ratios);
+  		$::sampleHash{$sample}{OFFTARGET_SD_RATIO}  = sprintf "%.3f", Utils::std(@ratios);
+
+  		if ($::sampleHash{$sample}{OFFTARGET_SD_RATIO} < $::minOfftargetSD) {
+  			$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'YES'
+  		}
+  		else {
+  			$::sampleHash{$sample}{PERFORM_OFFTARGET} = 'NO';
+  		}
+
+  		# compress file
+  		Utils::compressFile("$offtargetDir/$sample.ratios.txt");
+
+  		print " INFO: $sample mean ratio: $::sampleHash{$sample}{OFFTARGET_MEAN_RATIO} sd: $::sampleHash{$sample}{OFFTARGET_SD_RATIO}\n";
+  	}
  }
 
  ##############################
@@ -98,7 +195,6 @@ sub mergeOnOffRatios {
 		my $offtargetRatios  = "$offtargetDir/$sample.ratios.txt.gz";
 		my $OnOfftargetRatios= "$::outDir/$sample.ratios.txt.gz";
 
-
 		# Concatenating on/off ratios into a unified file, but just adding offtarget data that shows less than 0.2 standard deviation
 		if ( -e $ontargetRatios && -e $offtargetRatios ) {
 			my @ratioData = ();
@@ -106,15 +202,15 @@ sub mergeOnOffRatios {
 			if ($::sampleHash{$sample}{OFFTARGET_SD_RATIO} < 0.3) {
 				push @ratioData, $offtargetRatios;
 			}
-			my $cmd = "$::zcat @ratioData | $::sort -V | $::gzip > $OnOfftargetRatios\n";
+			my $cmd = "$::zcat @ratioData | $::sort -V | cut -f 1,2,3,4,5,6,7,8 | $::gzip > $OnOfftargetRatios\n";
 			system $cmd;
 		}
 		elsif ( !-e $ontargetRatios && -e $offtargetRatios ){
-			my $cmd = "$::zcat $offtargetRatios | $::sort -V | $::gzip > $OnOfftargetRatios\n";
+			my $cmd = "$::zcat $offtargetRatios | $::sort -V | cut -f 1,2,3,4,5,6,7,8 | $::gzip > $OnOfftargetRatios\n";
 			system $cmd;
 		}
 		elsif ( -e $ontargetRatios && !-e $offtargetRatios ) {
-			my $cmd = "$::zcat $ontargetRatios | $::sort -V | $::gzip > $OnOfftargetRatios\n";
+			my $cmd = "$::zcat $ontargetRatios | $::sort -V | cut -f 1,2,3,4,5,6,7,8 | $::gzip > $OnOfftargetRatios\n";
 			system $cmd;
 		}
 
@@ -127,7 +223,7 @@ sub mergeOnOffRatios {
 				my $coord = "$tmp[0]\t$tmp[1]\t$tmp[2]";
 				next if $::filteredRois{$coord};
 				next if scalar @tmp < 5;
-				my $ratio = $tmp[4];
+				my $ratio = $tmp[6];
 				push @ratios, $ratio;
 			}
 			close IN;
@@ -164,125 +260,122 @@ sub mergeOnOffRatios {
 
    # Select columns that correspond to the sample baseline
    foreach my $sample ( @samples ) {
-
-	   	# Skipping non-analyzable samples
-		next if exists $::referenceHash{$sample};
-        if ($::doCaseControl) {
-            next if $::sampleHash{$sample}{CONTROL};
-        }
-
-		my @idx = ();
-		foreach my $element ( @{$::sampleHash{$sample}{REFERENCE}} ) {
-
-			next if $element eq $sample;
-			if ($element eq 'none') {
-				@{$::sampleHash{$sample}{REF_ID}} = ();
-			}
-			else {
-				my $index = List::MoreUtils::first_index {$_ eq $element} @samples;
-				push @{$::sampleHash{$sample}{REF_ID}}, $index;
-			}
-		}
+    # Skipping non-analyzable samples
+    next if exists $::referenceHash{$sample};
+    if ($::doCaseControl) {
+        next if $::sampleHash{$sample}{CONTROL};
+    }
+    my @idx = ();
+    foreach my $element ( @{$::sampleHash{$sample}{REFERENCE}} ) {
+    	next if $element eq $sample;
+    	if ($element eq 'none') {
+    		@{$::sampleHash{$sample}{REF_ID}} = ();
+    	}
+    	else {
+    		my $index = List::MoreUtils::first_index {$_ eq $element} @samples;
+    		push @{$::sampleHash{$sample}{REF_ID}}, $index;
+    	}
+    }
    }
 
-   open (TOPLOTRATIOS, ">", "$inputDir/toplotratios.bed") || die " ERROR: Cannot open $inputDir/toplotratios.bed\n";
-   open (RATIOS, ">", $::HoF{RATIOS_ON}) || die " ERROR: Cannot open $::HoF{RATIOS_ON}\n";
-   my @headerArr = ();
+  my $plotRatioBed = $inputDir . "/" . "toplotratios.bed";
+  my @headerArr = ();
+  open (IN, "<", $::HoF{MERGED_NORM_COV}) || die " ERROR: Cannot open $::HoF{MERGED_NORM_COV}\n";
+  open (TOPLOTRATIOS, ">", $plotRatioBed) || die " ERROR: Cannot open $plotRatioBed\n";
+  open (RATIOS, ">", $::HoF{RATIOS_ON})   || die " ERROR: Cannot open $::HoF{RATIOS_ON}\n";
 
-   open (IN, "<", $::HoF{MERGED_NORM_COV}) || die " ERROR: Cannot open $::HoF{MERGED_NORM_COV}\n";
-   while (my $line=<IN>) {
-	chomp $line;
-	my @tmp = split (/\t/, $line);
+  while (my $line=<IN>) {
+  	chomp $line;
+  	my @tmp = split (/\t/, $line);
 
-	# Printing header section
-	if ($line=~/^chr\tstart/) {
-		my @tmpHeader = @tmp[6..@tmp-1];
-		my @newArr;
-		@headerArr = @tmpHeader;
+  	# Printing header section
+  	if ($line=~/^chr\tstart/) {
+  		my @tmpHeader = @tmp[6..@tmp-1];
+  		my @newArr;
+  		@headerArr = @tmpHeader;
 
-		foreach my $sample (@tmpHeader) {
-			next if !exists $::sampleHash{$sample};
-			if ($::doCaseControl) {
-				next if $::sampleHash{$sample}{CONTROL};
-			}
-			if (exists $::sampleHash{$sample}{REF_ID}) {
-				next if @{$::sampleHash{$sample}{REF_ID}} < 1;
-			}
-			else {
-				next;
-			}
-			push @newArr, $sample;
-			push @newArr, "$sample\_s2n";
-		}
-		my @sampleArray = ();
-		for my $s (@newArr) {
-			if ($s !~/s2n/) {
-				if ($::sampleHash{$s}{CONTROL}) {
-					next;
-				}
-			}
-			push @sampleArray, $s;
-		}
-		my $sampnames = join("\t", @sampleArray);
-		print RATIOS "chr\tstart\tend\tinfo\tGC\tmap\t$sampnames\n";
-		next;
-	}
+  		foreach my $sample (@tmpHeader) {
+  			next if !exists $::sampleHash{$sample};
+  			if ($::doCaseControl) {
+  				next if $::sampleHash{$sample}{CONTROL};
+  			}
+  			if (exists $::sampleHash{$sample}{REF_ID}) {
+  				next if @{$::sampleHash{$sample}{REF_ID}} < 1;
+  			}
+  			else {
+  				next;
+  			}
+  			push @newArr, $sample;
+  			push @newArr, "$sample\_s2n";
+  		}
+  		my @sampleArray = ();
+  		for my $s (@newArr) {
+  			if ($s !~/s2n/) {
+  				if ($::sampleHash{$s}{CONTROL}) {
+  					next;
+  				}
+  			}
+  			push @sampleArray, $s;
+  		}
+  		my $sampnames = join("\t", @sampleArray);
+  		print RATIOS "chr\tstart\tend\tinfo\tGC\tmap\t$sampnames\n";
+  		next;
+  	}
 
-	# Body section
-	my $coord = "$tmp[0]\t$tmp[1]\t$tmp[2]";
+  	# Body section
+  	my $coord = "$tmp[0]\t$tmp[1]\t$tmp[2]";
 
-	# Excluding filtered rois if present
-	next if $::filteredRois{$coord};
+  	# Excluding filtered rois if present
+  	next if $::filteredRois{$coord};
 
-	my $coordinate = join "\t", @tmp[0..3];
-	print RATIOS join "\t", @tmp[0..5];
+  	my $coordinate = join "\t", @tmp[0..3];
+  	print RATIOS join "\t", @tmp[0..5];
 
-	# Now calculating ratios for every sample.
-	my $j = 0;
-	for (my $i = 6; $i < @tmp; $i++) {
-		my $sample = @samples[$j];
-        if ($::doCaseControl) {
-            next if $::sampleHash{$sample}{CONTROL};
-        }
+  	# Now calculating ratios for every sample.
+  	my $j = 0;
+  	for (my $i = 6; $i < @tmp; $i++) {
+  		my $sample = @samples[$j];
+      if ($::doCaseControl) {
+        next if $::sampleHash{$sample}{CONTROL};
+      }
+  		if ( !exists $::sampleHash{$sample} ) {
+  			$j++;
+  			next;
+  		}
+  		if (exists $::sampleHash{$sample}{REF_ID}) {
+  			if ( @{$::sampleHash{$sample}{REF_ID}} < 1 ) {
+  				$j++;
+  				next;
+  			}
+  		}
+  		else {
+  			next;
+  		}
+  		$j++;
 
-		if ( !exists $::sampleHash{$sample} ) {
-			$j++;
-			next;
-		}
+  		my @tmpRefs;
+  		# Calculating a baseline from the median corrected counts from each reference
+  		foreach my $idx ( @{$::sampleHash{$sample}{REF_ID}} ) {
+  			push @tmpRefs, $tmp[6+$idx];
+  		}
+  		if (@tmpRefs) {
+  			# Median and signal to noise calculation
+  			my $meanBaseline = Utils::medianArray(@tmpRefs);
+  			my ($medianBaseline, $s2n) = Utils::signal2noise(@tmpRefs);
+  			$s2n = 5 if @tmpRefs == 1;
+  			my $ratio =  $meanBaseline > 0 ? sprintf "%.3f", $tmp[$i]/$meanBaseline : "0.00";
 
-		if (exists $::sampleHash{$sample}{REF_ID}) {
-			if ( @{$::sampleHash{$sample}{REF_ID}} < 1 ) {
-				$j++;
-				next;
-			}
-		}
-		else {
-			next;
-		}
-		$j++;
+  			print TOPLOTRATIOS join("\t", @tmp[0..5]) . "\t$sample\t$ratio\n";
+  			print RATIOS "\t$ratio\t$s2n";
 
-		my @tmpRefs;
-		# Calculating a baseline from the median corrected counts from each reference
-		foreach my $idx ( @{$::sampleHash{$sample}{REF_ID}} ) {
-			push @tmpRefs, $tmp[6+$idx];
-		}
-		if (@tmpRefs) {
-			# Median and signal to noise calculation
-			my $meanBaseline = Utils::medianArray(@tmpRefs);
-			my ($medianBaseline, $s2n) = Utils::signal2noise(@tmpRefs);
-			$s2n = 5 if @tmpRefs == 1;
-			my $ratio =  $meanBaseline > 0 ? sprintf "%.3f", $tmp[$i]/$meanBaseline : "0.00";
+  			# Load JSON
+  			push @{$::analysisJson{$sample}{On_target}{Rois}}, $tmp[3];
+  			push @{$::analysisJson{$sample}{On_target}{Ratios}}, $ratio;
+  		}
+  	}
 
-			print TOPLOTRATIOS join("\t", @tmp[0..5]) . "\t$sample\t$ratio\n";
-			print RATIOS "\t$ratio\t$s2n";
-
-			# Load JSON
-			push @{$::analysisJson{$sample}{On_target}{Rois}}, $tmp[3];
-			push @{$::analysisJson{$sample}{On_target}{Ratios}}, $ratio;
-		}
-	}
-	print RATIOS "\n";
-   }
+  	print RATIOS "\n";
+  }
 
    my $j = 7;
    my $k = 8;
@@ -290,7 +383,7 @@ sub mergeOnOffRatios {
    # Splitting Ratios file for segmentation and deleting outlier ratios
    foreach my $sample (	natsort keys %::sampleHash ) {
 
-	   	# Skipping database references
+	  # Skipping database references
 		if (exists $::referenceHash{$sample}) {
 			next;
 		}
@@ -299,7 +392,7 @@ sub mergeOnOffRatios {
 		if ( exists $::sampleHash{$sample}{REF_ID} && @{$::sampleHash{$sample}{REF_ID}} >= 1 ) {
 
 			# Here, skipping header and selecting sample columns
-			my $cmd = "$::cat $inputDir/$::outName.Ratios.bed | $::tail -n +2 | $::cut -f 1,2,3,4,$j,$k |";
+			my $cmd = "$::cat $inputDir/$::outName.Ratios.bed | $::tail -n +2 | $::cut -f 1,2,3,4,5,6,$j,$k |";
 			$cmd .=  "$::awk '{if (\$4 !~/info/) { print \$0 } }' > $inputDir/$sample.ratios.txt";
 			system($cmd);
 
@@ -307,7 +400,7 @@ sub mergeOnOffRatios {
 			Utils::compressFile("$inputDir/$sample.ratios.txt");
 
 			# Now calculating mean and std deviation statistics
-			my $statistics = `$::zcat $inputDir/$sample.ratios.txt.gz | $::tail -n +2 | $::cut -f 5 | $::awk '{if (\$1<0){\$1=-\$1}else{\$1=\$1} sum+=\$1; sumsq+=\$1*\$1} END {print sum/NR, sqrt(sumsq/NR - (sum/NR)^2)}'`;
+			my $statistics = `$::zcat $inputDir/$sample.ratios.txt.gz | $::tail -n +2 | $::cut -f 7 | $::awk '{if (\$1<0){\$1=-\$1}else{\$1=\$1} sum+=\$1; sumsq+=\$1*\$1} END {print sum/NR, sqrt(sumsq/NR - (sum/NR)^2)}'`;
 			my ($mean, $stdev) = split(/\s/,$statistics);
 
 			$::sampleHash{$sample}{ONTARGET_MEAN_RATIO}  = $mean;
@@ -326,7 +419,6 @@ sub mergeOnOffRatios {
 		}
    }
    Utils::compressFile($::HoF{RATIOS_ON});
-
  }
 
 ####################

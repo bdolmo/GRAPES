@@ -7,6 +7,28 @@ use Statistics::Descriptive;
 use Sort::Key::Natural qw(natsort);
 use Scalar::Util qw(looks_like_number);
 
+##############################################
+sub indexBam {
+
+	my $bam = shift;
+	my $cmd = "$::samtools index $bam";
+	system $cmd;
+}
+
+##############################################
+sub getTotalCountsBam {
+
+	my $bam = shift;
+	my $bed = shift;
+	my $counts = `$::samtools view -c $bam -L $bed`;
+	chomp $counts;
+
+	if (!$counts) {
+		print " ERROR: Could not extract total read counts on $bam\n";
+		exit;
+	}
+	return $counts;
+}
 
 ##############################################
 sub loadSingleExon2Json {
@@ -26,7 +48,6 @@ sub loadSingleExon2Json {
 	}
 	close IN;
 }
-
 
 ##############################################
 sub loadShortPLot2Json {
@@ -118,6 +139,7 @@ sub populateMapGcHashFromNormCountsOntarget {
 	close IN;
 
 }
+
 ###################
 sub compressFileBgzip {
 
@@ -127,6 +149,7 @@ sub compressFileBgzip {
 	my $cmd = "$::bgzip -c $infile > $infile.gz";
 	system $cmd if -s $infile;
 }
+
 ###################
 sub tabixIndex {
 	my $infile   = shift;
@@ -159,6 +182,7 @@ sub decompressFile {
 	my $cmd = "$::gunzip -f $infile";
 	system $cmd if -s $infile;
 }
+
 ###################
 sub compressFile {
 

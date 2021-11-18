@@ -597,12 +597,14 @@ $minZscore  = 2.58 if !$minZscore;
 	NORM_COUNTS_ON   => "$ontargetDir/$::outName.NormalizedCounts.bed", # Master file with normalized counts for all samples
   NORM_COVERAGE_ON => "$ontargetDir/$::outName.NormalizedCoverage.bed", # Master file with normalized coverages for all samples
 	MERGED_NORM_COV  => "$ontargetDir/$::outName.MergedNormalizedCounts.bed", # Merged normalized counts of NORM_COUNTS_ON and database
+	GLOBAL_OFFTARGET_BED => "$offtargetDir/global.offtarget.bed", # Global offtarget regions file for all samples
   RATIOS_ON        => "$ontargetDir/$::outName.Ratios.bed", # Master file with sample roi ratios for all samples
 	REFERENCES       => "$ontargetDir/$::outName.references.txt", # File with created references
 	FILTERED_ON      => "$ontargetDir/filtered_regions.txt", # Filtered regions due to low mappability, gc.
 	EXPORTED_DB      => "$ontargetDir/References.sqlite.txt", # Database exported in .txt temporary file
 	JSON             => "$outDir/$::outName.GRAPES.json",  # json that stores sample copy ratios for visualization/exploration purposes
 	ALL_CALLS        => "$outDir/allCNV.xlsx",
+	SUMMARY_METRICS  => "$outDir/summary_metrics.log"
  );
 
  # Defining SQLite-related variables
@@ -698,7 +700,7 @@ $minZscore  = 2.58 if !$minZscore;
 			chomp $line;
 			my @tmp = split (/\t/, $line);
 			if (@tmp > 1) {
-				print "\nERROR: $cases file list must contain a single sample PATH per line\n";
+				print " ERROR: $cases file list must contain a single sample PATH per line\n";
 				exit;
 			}
 			push @caseBams, $line;
@@ -803,18 +805,6 @@ $minZscore  = 2.58 if !$minZscore;
  #################################################################################################################
  our ($hasChr, $mappTrack, $centromeres, $hg19Track, $genomePatches, $intronFile ) = checkChrFormat($bams[0]);
 
- #####################################################################
- #     Create intronic bed. For now just applicable for gene panels  #
- #     GOAL: Find exons that are very close (<200bp)                 #
- #####################################################################
- #if ($analysisMode eq 'gene-panel' && $doExtraction) {
-	#if ( !-e "$outDir/SHORT_INTRONS/mappability_intronic.bed") {
-		#print YELLOW "\n INTRON ANALYSIS\n", RESET;
-		#print " INFO: Extracting short (<200bp) intronic sequences\n";
-		#Intron::Analyze();
-	#}
- #}
-
  ###################################################
  #    Initializing sample and a GC global hashes   #
  ###################################################
@@ -892,7 +882,7 @@ $minZscore  = 2.58 if !$minZscore;
  #########################
  if ($doBreakpoint) {
 
-   print YELLOW "\n Breakpoint SV analysis\n", RESET;
+   print YELLOW "\n SV (breakpoint) analysis\n", RESET;
 
 	 foreach my $bam( @bams ) {
 
@@ -905,18 +895,9 @@ $minZscore  = 2.58 if !$minZscore;
 		my $samplePath  = $bam;
 		$sampleName=~s/.bam//;
 
-		#my $pid = $pm -> start() and next;
-		#if (!-e "$outDir/ON_TARGET/$sampleName/$sampleName.breakpoints.vcf") {
-			print " INFO: Analyzing breakpoints from sample $sampleName\n";
-			Breakpoint::AnalyzeWES($bam, $genome, $outDir, $sampleName, 3, 10, 3);
-		#}
-		#else {
-		#	print " INFO: skipping breakpoint detection. Results are already available\n";
-		#}
-	   	#$pm->finish;
-		#print " INFO: Done with $sampleName\n";
+		print " INFO: Analyzing breakpoints from sample $sampleName\n";
+		Breakpoint::AnalyzeWES($bam, $genome, $outDir, $sampleName, 3, 10, 3);
 	 }
-	 #$pm->wait_all_children;
  }
 
  ################################################################
@@ -926,7 +907,7 @@ $minZscore  = 2.58 if !$minZscore;
  ################################################################
 
 if ( readDepthIsInvolved() ) {
-	print YELLOW "\n Read Depth Analysis\n", RESET;
+	print YELLOW "\n CNV Analysis\n", RESET;
 }
  if ($doExtraction) {
 
@@ -961,7 +942,7 @@ if ( readDepthIsInvolved() ) {
 	}
 	if ($doOfftarget) {
 
-		print " INFO: Creating off-target bins\n";
+		print " INFO: Preprocessing off-target data\n";
 		Offtarget::preProcess($bed, $outDir, $offtargetDir);
 
 		# Removing outlier peaks using MACS2
@@ -985,10 +966,10 @@ Utils::compressFile("$ontargetDir/$outName.Coverages.bed");
 # Getting sample info
 foreach my $sample ( sort keys %sampleHash ) {
 
-	my $str = `$grep '$sample' $outDir/summary_metrics.log` if -s "$outDir/summary_metrics.log";
+	my $str = `$grep '$sample' $HoF{SUMMARY_METRICS}` if -s $HoF{SUMMARY_METRICS};
 	chomp $str if $str;
 	if (!$str) {
-		print " INFO: No read depth metrics found. Exiting\n";
+		print " ERROR: No read depth metrics $HoF{SUMMARY_METRICS} was found\n";
 		exit;
 	}
 
@@ -1017,9 +998,18 @@ foreach my $sample ( sort keys %sampleHash ) {
 
  if ($doNormalization) {
 
+	 # Off-target data analysis
+ 	if ($doOfftarget) {
+
+ 		# Normalized off-target data by GC
+ 		print " INFO: Normalizing off-target\n";
+ 		Normalize::normalizeOfftarget($offtargetDir);
+
+ 	}
+
 	# On-target data
 	if ($normalizationMethod eq 'median') {
-		print " INFO: Normalizing on-target\n";
+		print " INFO: Normalizing  on-target\n";
 		Normalize::normalizeOntarget($ontargetDir, $analysisMode, "ontarget", \%ontargetHash);
 	}
 	elsif ($normalizationMethod eq 'PCA') {
@@ -1048,25 +1038,6 @@ foreach my $sample ( sort keys %sampleHash ) {
 	# Update sqlite database
 	Reference::updateDB();
 
-	# Render scatterplot only if ratios are available
-	if ( $plotScatter && -e "$ontargetDir/$outName.Ratios.bed.gz" && !$doCalling ) {
-		print " INFO: Plotting genome-wide on-target data\n";
-		Plot::plotScatter($ontargetDir, $analysisMode, "on-target");
-	}
-
-	# Off-target data analysis
-	if ($doOfftarget) {
-
-		# Normalized off-target data by GC
-		print " INFO: Normalizing off-target\n";
-		Normalize::normalizeOfftarget($offtargetDir);
-
-		# Create scatterplot
-		if ( $plotScatter && -e "$offtargetDir/$outName.Ratios.bed" && !$doCalling ) {
-			print " INFO: Plotting genome-wide off-target data\n";
-			Plot::plotScatter($offtargetDir, $analysisMode, "off-target");
-		}
-	}
  }
 
  if ($doCalling) {
@@ -1077,7 +1048,7 @@ foreach my $sample ( sort keys %sampleHash ) {
 	print " INFO: Calculating on-target ratio\n";
 	Ratio::calculateOnTargetRatios( $ontargetDir );
 
-	print " INFO: Segmenting on-target data\n";
+	print " INFO: Segmenting on-target ratios\n";
 	Segment::CBS($ontargetDir, "on-target", $analysisMode);
 
 	print " INFO: Calling on-target CNVs\n";
@@ -1090,45 +1061,32 @@ foreach my $sample ( sort keys %sampleHash ) {
 	}
 
 	if ( $doOfftarget ) {
+
 		print " INFO: Calculating off-target ratio\n";
-		Ratio::calculateRatioOfftarget($offtargetDir);
+		Ratio::calculateRatioOfftargetBatch($offtargetDir);
 
 		print " INFO: Segmenting off-target data\n";
 		Segment::CBS($offtargetDir, "off-target", $analysisMode);
 
-		print " INFO: Calling off-target CNVs\n";
-		CallCNV::call($offtargetDir, $analysisMode, "off-target", $off_bed,
-			"$offtargetDir/$outName.Ratios.bed.gz");
-
-		if ( $plotScatter ) {
-			print " INFO: Plotting genome-wide off-target data\n";
-			Plot::plotScatter($offtargetDir, $analysisMode, "off-target");
-		}
-
+		print " INFO: Merging on+off-target ratios\n";
 		Ratio::mergeOnOffRatios($ontargetDir, $offtargetDir);
 
 		print " INFO: Segmenting on+off-target\n";
 		Segment::CBS($outDir, "off-target", $analysisMode);
+
+		print " INFO: Calling on+off-target CNVs\n";
+		CallCNV::call($outDir, $analysisMode, "mixed", "None", "None");
 
 		if ( $plotScatter ) {
 			print " INFO: Plotting genome-wide on+off-target data\n";
 			Plot::plotScatter($outDir, $analysisMode, "off-target");
 		}
 
-		print " INFO: Calling on+off-target CNVs\n";
-		CallCNV::call($outDir, $analysisMode, "mixed", "None", "None");
-	}
-	else {
-		if ( $plotScatter ) {
-			print " INFO: Plotting genome-wide on-target data\n";
-			Plot::plotScatter($outDir, $analysisMode, "off-target");
-		}
-	}
-	# Outputting on-, off-, and mixed CNV calls at main output folder (outDir)
-	# Todo: UNify CNVs calls when there exists overlap between on and off-target.
-	mergeOnOfftargetCalls();
  }
-
+ # Outputting on-, off-, and mixed CNV calls at main output folder (outDir)
+ # Todo: UNify CNVs calls when there exists overlap between on and off-target.
+ mergeOnOfftargetCalls();
+}
 # Annotate VAF SNV information
 if ($doVAF){
 	print " INFO: Adding VAF information\n";
@@ -1156,8 +1114,10 @@ if ($doFilter) {
 	foreach my $sample ( sort keys %sampleHash ) {
 
 		next if $sampleHash{$sample}{CONTROL};
-		HardFilter::filter("$outDir/ON_TARGET/$sample.CNV.vcf")
-			if -e "$outDir/ON_TARGET/$sample.CNV.vcf";
+
+		HardFilter::filter("$ontargetDir/$sample.CNV.vcf")
+			if -e "$ontargetDir/$sample.CNV.vcf";
+
 		HardFilter::filter("$outDir/$sample.CNV.vcf")
 			if -e "$outDir/$sample.CNV.vcf";
 	}
@@ -1194,10 +1154,10 @@ Report::writeRoiQC( $outDir );
 Report::exportCnvXLS();
 
 # Creating HTML report for gene-panels.
-if ( $createReport ) {
-	#print " INFO: Generating HTML report\n";
-	#vcf2HTML::createHTMLreport();
-}
+# if ( $createReport ) {
+# 	#print " INFO: Generating HTML report\n";
+# 	#vcf2HTML::createHTMLreport();
+# }
 
 my $json = JSON::MaybeXS->new(utf8 => 1, pretty => 1, sort_by => 1);
 my $json_output = $json->encode(\%analysisJson);

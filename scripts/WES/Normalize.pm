@@ -14,15 +14,15 @@ use Sort::Key::Natural qw(natsort);
 
 	my $outputDir    = shift;
 	my $analysisMode = shift; # exome or gene-panel
-	my $type 	     = shift; # ontarget
-    my $hashOfRegion = shift; # Reference of a hash containing roi info
+	my $type 	       = shift; # ontarget
+  my $hashOfRegion = shift; # Reference of a hash containing roi info
 
    	# Corrected read counts
 	my $outCorrectedCounts = $::HoF{NORM_COUNTS_ON};
 
 	if ($analysisMode eq 'gene-panel') {
 		if ( (-s $::HoF{NORM_COUNTS_ON} ||  -s "$::HoF{NORM_COUNTS_ON}.gz") && (-s $::HoF{NORM_COVERAGE_ON} || -s "$::HoF{NORM_COVERAGE_ON}.gz") ) {
-			return 1;
+			#return 1;
 		}
 	}
 	# Read Raw Depth
@@ -30,7 +30,7 @@ use Sort::Key::Natural qw(natsort);
 
 	if ($type eq "offtarget" && !-e"$outputDir/$::outName.ReadCounts.bed.gz") {
 		print " WARNING: skipping off-target normalization\n";
-		return 0;
+		#return 0;
 	}
 
 	my @tmpOfftarget    = ();
@@ -72,17 +72,18 @@ use Sort::Key::Natural qw(natsort);
 
 		# Performing GC normalization using rolling median procedure
 		foreach my $coordinate( natsort keys %$hashOfRegion ) {
-
 			my $chr = ( split /\t/, $coordinate)[0];
 
 			my $gc_interval = $::ExonFeatures{$coordinate}{GC_INTERVAL};
 
 			# 2. Normalizing scaled-Counts by GC
 			if ( ( isChrX($chr) ) && (exists $::GC{$sample}{$gc_interval}{MEDIAN_X} ) ) {
-				$hashOfRegion->{$coordinate}->{ $sample }->{GC_NORM} = sprintf "%.3f", ( $hashOfRegion->{$coordinate}->{ $sample }{LIBNORM}*($::sample{$sample}{MEDIANCOUNTS}/$::GC{$sample}{$gc_interval}{MEDIAN_X}));
+				$hashOfRegion->{$coordinate}->{ $sample }->{GC_NORM}
+          = sprintf "%.3f", ( $hashOfRegion->{$coordinate}->{ $sample }{LIBNORM}*($::sample{$sample}{MEDIANCOUNTS}/$::GC{$sample}{$gc_interval}{MEDIAN_X}));
 			}
 			elsif  ( (!isChrX($chr)) && (exists $::GC{$sample}{$gc_interval}{MEDIAN} ) ) {
-				$hashOfRegion->{$coordinate}->{ $sample }->{GC_NORM} = sprintf "%.3f", ( $hashOfRegion->{$coordinate}->{ $sample }{LIBNORM}*($::sample{$sample}{MEDIANCOUNTS}/$::GC{$sample}{$gc_interval}{MEDIAN}));
+				$hashOfRegion->{$coordinate}->{ $sample }->{GC_NORM}
+          = sprintf "%.3f", ( $hashOfRegion->{$coordinate}->{ $sample }{LIBNORM}*($::sample{$sample}{MEDIANCOUNTS}/$::GC{$sample}{$gc_interval}{MEDIAN}));
 			}
 			else {
 				$hashOfRegion->{$coordinate}->{ $sample }->{GC_NORM} = $hashOfRegion->{$coordinate}->{ $sample }{LIBNORM};
@@ -100,7 +101,7 @@ use Sort::Key::Natural qw(natsort);
 			# 3. Normalizing GC-corrected counts by region length
 			if ($::ExonFeatures{$coordinate}{LENGTH_INTERVAL} && $type eq 'ontarget') {
 				$hashOfRegion->{$coordinate}->{ $sample }->{LENGTH_NORM}
-				 = sprintf "%.3f", ( $hashOfRegion->{$coordinate}->{ $sample }{LIBNORM}*($::sample{$sample}{MEDIANCOUNTS}/$::ExonLength{$length_interval}{MEDIAN}));
+				 = sprintf "%.3f", ( $hashOfRegion->{$coordinate}->{$sample}{LIBNORM}*($::sample{$sample}{MEDIANCOUNTS}/$::ExonLength{$length_interval}{MEDIAN}));
 			}
 		}
 		if ($type eq 'offtarget') {
@@ -390,12 +391,6 @@ use Sort::Key::Natural qw(natsort);
 	# add mappability to %::ExonFeatures
 	readMappability($mappabilityFile);
 
-	# Output-> normalized counts/covs by library size
-	#my $outNormLibCounts    = "$outputDir/$::outName.norm_bylib_counts.bed";
-
-	# library normalized counts file
-	#open (NORMLIBCOUNTS, ">", $outNormLibCounts) || die " ERROR: Cannot open $outNormLibCounts\n";
-
 	# Regions not meeting a minimum creteria of GC content, mappability and length are filtered and annotated in this file
 	open (FILTERED, ">", "$outputDir/filtered_regions.txt") || die " ERROR: Cannot open $outputDir/filtered_regions.txt\n";
 	print FILTERED "chr\tstart\tend\tinfo\tavg_coverage\t\%gc\t\%mappability\n";
@@ -605,6 +600,7 @@ use Sort::Key::Natural qw(natsort);
 	close FILE;
 
 	$::sampleHash{$sample}{OFFTARGETMEDIAN}  = Utils::medianArray(@addCounts);
+  print " INFO: $sample $::sampleHash{$sample}{OFFTARGETMEDIAN}\n";
 	$::sampleHash{$sample}{OFFTARGETMEDIANX} = Utils::medianArray(@addCountsX);
 
 	return @tmpFile;
@@ -624,7 +620,6 @@ use Sort::Key::Natural qw(natsort);
 	my $output = "$outputDir/$name";
 
 	open (IN, "<", $inputFile) || die " ERROR: unable to open $inputFile\n";
-
 	while (my $line=<IN>) {
 		chomp $line;
 		my @tmp = split (/\t/, $line);
@@ -663,29 +658,26 @@ use Sort::Key::Natural qw(natsort);
 		}
 
 		my $countFile = "$offtargetDir/$sample.offtarget_joined_counts.bed.gz";
-
-		if (!-e $countFile || -z $countFile) {
-			next;
-		}
-
 		my @tmpFile   = readOfftargetFile($countFile, $sample);
 
 		foreach my $gc_interval (natsort keys %{$::GC{$sample}}) {
-			if ($::GC{$sample}{$gc_interval}{ARR_COUNTS} && $::GC{$sample}{$gc_interval}{ARR_COUNTS} > 50 ) {
+			if ($::GC{$sample}{$gc_interval}{ARR_COUNTS} && $::GC{$sample}{$gc_interval}{ARR_COUNTS} > 200 ) {
 				$::GC{$sample}{$gc_interval}{MEDIAN} = Utils::medianRefVar($::GC{$sample}{$gc_interval}{ARR_COUNTS});
 				$::GC{$sample}{$gc_interval}{ARR_COUNTS} = ();
 			}
-			if ($::GC{$sample}{$gc_interval}{ARR_COUNTS_X} && $::GC{$sample}{$gc_interval}{ARR_COUNTS_X} > 50) {
+			if ($::GC{$sample}{$gc_interval}{ARR_COUNTS_X} && $::GC{$sample}{$gc_interval}{ARR_COUNTS_X} > 200) {
 				$::GC{$sample}{$gc_interval}{MEDIAN_X} = Utils::medianRefVar($::GC{$sample}{$gc_interval}{ARR_COUNTS_X});
 				$::GC{$sample}{$gc_interval}{ARR_COUNTS_X} = ();
 			}
 		}
-
-		open OUT, ">", "$offtargetDir/$sample.normalized.bed" || die " ERROR: Unable to open $offtargetDir/$sample.normalized.bed\n";
+    my $normalizedCounts = $offtargetDir . "/" . "$sample.normalized.bed";
+		open OUT, ">", $normalizedCounts || die " ERROR: Unable to open $normalizedCounts\n";
 		foreach my $line (@tmpFile) {
 			chomp $line;
       next if $line =~/^#/;
       #chr1	15767226	16617035	pdwindow_19	49.588	98.020	598
+      #chr1	2457638	5045980	pdwindow_2	98.171	30.368	1243.735
+
 			my @tmp     = split (/\t/, $line);
 			my $chr     = $tmp[0];
 			my $start   = $tmp[1];
@@ -700,24 +692,33 @@ use Sort::Key::Natural qw(natsort);
 				if ( isChrX($chr) ) {
 					if ($::GC{$sample}{$gc_int}{MEDIAN_X}) {
 						$normGC = sprintf "%.3F", ( $counts*($::sampleHash{$sample}{OFFTARGETMEDIANX}/$::GC{$sample}{$gc_int}{MEDIAN_X}));
+            $normGC = $counts/$::sampleHash{$sample}{OFFTARGETMEDIANX};
 						push @normCountsX, $normGC;
 					}
 					else {
-						next;
+            $normGC = $counts/$::sampleHash{$sample}{OFFTARGETMEDIANX};
 					}
 				}
 				else {
 					if ($::GC{$sample}{$gc_int}{MEDIAN}) {
 						$normGC = sprintf "%.3F", ( $counts*($::sampleHash{$sample}{OFFTARGETMEDIAN}/$::GC{$sample}{$gc_int}{MEDIAN}));
+            #print"here\t$counts\t$normGC\n";
+            $normGC = $counts/$::sampleHash{$sample}{OFFTARGETMEDIAN};
+            #$normGC = $counts;
 					}
 					else {
-						$normGC = $counts;
+             $normGC = $counts/$::sampleHash{$sample}{OFFTARGETMEDIAN};
+						#$normGC = $counts;
 					}
 					push @normCounts, $normGC;
 				}
         #print "printing $chr\t$start\t$end\t$info\t$tmp[4]\t$tmp[5]\t$counts\t$normGC\n";
 				print OUT "$chr\t$start\t$end\t$info\t$tmp[4]\t$tmp[5]\t$counts\t$normGC\n";
 			}
+      else {
+        $normGC = $counts/$::sampleHash{$sample}{OFFTARGETMEDIAN};
+        print OUT "$chr\t$start\t$end\t$info\t$tmp[4]\t$tmp[5]\t$counts\t$normGC\n";
+      }
 		}
 		close OUT;
 		$::sampleHash{$sample}{OFFTARGET_NORMALIZED}   = Utils::medianArray(@normCounts)  if @normCountsX > 0;
@@ -725,13 +726,12 @@ use Sort::Key::Natural qw(natsort);
 
 		@normCounts = ();
 		@normCountsX = ();
+    #joinBins("$offtargetDir/$sample.normalized.bed", $offtargetDir);
 
-    joinBins("$offtargetDir/$sample.normalized.bed", $offtargetDir);
-
-		unlink "$offtargetDir/$sample.normalized.bed.gz" if -e "$offtargetDir/$sample.normalized.bed.gz";
-
-		rename "$offtargetDir/$sample.normalized.joined.bed", "$offtargetDir/$sample.normalized.bed";
-	  Utils::compressFile("$offtargetDir/$sample.normalized.bed");
+		# unlink "$offtargetDir/$sample.normalized.bed.gz" if -e "$offtargetDir/$sample.normalized.bed.gz";
+    #
+		# rename "$offtargetDir/$sample.normalized.joined.bed", "$offtargetDir/$sample.normalized.bed";
+	  Utils::compressFile($normalizedCounts);
 	}
  }
 

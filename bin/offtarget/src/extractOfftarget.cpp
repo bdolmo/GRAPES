@@ -19,10 +19,8 @@
 #include "SeqLib/BamWriter.h"
 #include "SeqLib/BWAWrapper.h"
 
-
 using namespace SeqLib;
 using namespace std;
-
 
 float computeGC ( std::string chr, int start, int end, RefGenome& reference ) {
 
@@ -54,31 +52,33 @@ vector<string> inline split( std::string const& original, char separator )
 }
 
 void bed2Vector( std::string& bed, vector<bed_t>& RegionsVector, RefGenome& ref) {
-	ifstream bedFile;
+	  ifstream bedFile;
   	bedFile.open (bed);
-        if (bedFile.is_open()) {
-		string line;
-		while ( std::getline (bedFile, line)) {
-			vector<string> tmp = split(line, '\t');
-			string chr = tmp[0];
-			int start  = atoi(tmp[1].c_str());
-			int end    = atoi(tmp[2].c_str());
+    if (bedFile.is_open()) {
+			string line;
+			while ( std::getline (bedFile, line)) {
+				vector<string> tmp = split(line, '\t');
+				string chr = tmp[0];
+				int start  = atoi(tmp[1].c_str());
+				int end    = atoi(tmp[2].c_str());
 
-			//float gc = computeGC(chr, start, end, ref);
-			float gc;
-			bed_t region;
-			region.chr = chr;
-			region.start = start;
-			region.end = end;
-			region.gc = gc;
-			
-			if (tmp.size() > 3) {
-				string info = tmp[3];
-				region.info = info;
+				float gc;
+				bed_t region;
+				region.chr  = chr;
+				region.start= start;
+				region.end  = end;
+				region.gc   = gc;
+
+				if (tmp.size() > 3) {
+					for (int i =3; i < tmp.size();i++) {
+						region.fields.push_back(tmp[i]);
+					}
+					string info = tmp[3];
+					region.info = info;
+				}
+				RegionsVector.push_back(region);
 			}
-			RegionsVector.push_back(region);
 		}
-	}
 }
 
 
@@ -105,7 +105,7 @@ int main (int argc, char* argv[]) {
 	string chrB;
 	int startB;
 	int endB;
-	
+
 	int first_start;
 	int last_end;
 
@@ -123,67 +123,94 @@ int main (int argc, char* argv[]) {
 	int start_region;
 	int end_region;
 	string info_region;
+	string fields_region;
 	while (reader.GetNextRecord(r)) {
+
 		int chr = r.ChrID();
 		if (chr < 0 || chr > 24) {
 			continue;
 		}
 
 		string chrom  = myHeader.IDtoName(r.ChrID());
-
+    //cout << chrom << "\t" << r.Position() << endl;
 		if (i == 0) {
 			chr_region  = RegionsVector[i].chr;
 			start_region= RegionsVector[i].start;
 			end_region  = RegionsVector[i].end;
-			info_region = RegionsVector[i].info; 
+			fields_region = "";
+			for (auto& field : RegionsVector[i].fields) {
+				fields_region+= "\t" + field;
+			}
 		}
 
-		if ( (r.MapQuality() > 50) && (chrom == chr_region) && ( ( r.Position() <= start_region) && (r.Position()+r.Length() > start_region ) || ( r.Position() < end_region && r.Position()+r.Length() >= end_region)
+		// if ( !reader.GetNextRecord(r)) {
+		// 	cout <<  i << " " << r.Position() << " " << r.Position()+r.Length() << " "<<RegionsVector.size()-1 << " "<< chr_region << "\t" << start_region << "\t" << end_region  << fields_region << "\t" << count << endl;
+		// }
 
+
+		if ( (r.MapQuality() > 50) && (chrom == chr_region) && ( ( r.Position() <= start_region) && (r.Position()+r.Length() > start_region )
+		|| ( r.Position() < end_region && r.Position()+r.Length() >= end_region)
 		|| ( r.Position() >= start_region && r.Position()+r.Length() <= end_region))) {
 			count++;
 		}
-		if ( chrom == chr_region && r.Position() > end_region) {
-			cout << chr_region << "\t" << start_region << "\t" << end_region << "\t" << info_region << "\t" << count << endl;
+		if ( chrom == chr_region && r.Position() > end_region && i < RegionsVector.size()-1) {
+			cout << chr_region << "\t" << start_region << "\t" << end_region  << fields_region << "\t" << count << endl;
 			i++;
 			count = 0;
 			chr_region  = RegionsVector[i].chr;
 			start_region= RegionsVector[i].start;
 			end_region  = RegionsVector[i].end;
-			info_region = RegionsVector[i].info; 
+			fields_region = "";
+			for (auto& field : RegionsVector[i].fields) {
+				fields_region+= "\t" + field;
+			}
 			continue;
 		}
 		if (chrom != chr_region && i < RegionsVector.size()-1 ) {
-			cout << chr_region << "\t" << start_region << "\t" << end_region << "\t" << info_region << "\t" << count << endl;
+
+			cout << chr_region << "\t" << start_region << "\t" << end_region  << fields_region << "\t" << count << endl;
 			i++;
 			count = 0;
 			chr_region  = RegionsVector[i].chr;
 			start_region= RegionsVector[i].start;
 			end_region  = RegionsVector[i].end;
-			info_region = RegionsVector[i].info; 
-			if ( (r.MapQuality() > 50) && (chrom == chr_region) && ( ( r.Position() <= start_region) && (r.Position()+r.Length() > start_region ) || ( r.Position() < end_region && r.Position()+r.Length() >= end_region)
+			fields_region = "";
+			for (auto& field : RegionsVector[i].fields) {
+				fields_region+= "\t" + field;
+			}
 
+			if ( (r.MapQuality() > 50) && (chrom == chr_region) && ( ( r.Position() <= start_region) && (r.Position()+r.Length() > start_region )
+			|| ( r.Position() < end_region && r.Position()+r.Length() >= end_region)
 			|| ( r.Position() >= start_region && r.Position()+r.Length() <= end_region))) {
 				count++;
 			}
 			continue;
 		}
-		if ( i ==  RegionsVector.size()-1 ) {
 
-			if ( !reader.GetNextRecord(r)) {
-				//cout << "end of file" << endl;
-			}
-
-			if ( (r.MapQuality() > 50) && (chrom == chr_region) && ( ( r.Position() <= start_region) && (r.Position()+r.Length() > start_region ) || ( r.Position() < end_region && r.Position()+r.Length() >= end_region)
-
+		if ( i ==  RegionsVector.size()-1 || !reader.GetNextRecord(r)) {
+			if ( (r.MapQuality() > 50) && (chrom == chr_region) && ( ( r.Position() <= start_region) && (r.Position()+r.Length() > start_region )
+			|| ( r.Position() < end_region && r.Position()+r.Length() >= end_region)
 			|| ( r.Position() >= start_region && r.Position()+r.Length() <= end_region))) {
 				count++;
 			}
-			if ( !reader.GetNextRecord(r)) {
-				cout << chr_region << "\t" << start_region << "\t" << end_region << "\t" << info_region << "\t" << count << endl;
-				//i++;
-			}
+			// if ( !reader.GetNextRecord(r)) {
+			// 	cout <<  i << " " <<RegionsVector.size()-1 << " "<< chr_region << "\t" << start_region << "\t" << end_region  << fields_region << "\t" << count << endl;
+			// }
 		}
+
 	}
+	for (int j=i;j<=RegionsVector.size()-1;j++)  {
+		count = 0;
+		chr_region  = RegionsVector[j].chr;
+		start_region= RegionsVector[j].start;
+		end_region  = RegionsVector[j].end;
+		fields_region = "";
+		for (auto& field : RegionsVector[j].fields) {
+			fields_region+= "\t" + field;
+		}
+		cout << chr_region << "\t" << start_region << "\t" << end_region  << fields_region << "\t" << count << endl;
+
+	}
+
 	return 0;
 }
