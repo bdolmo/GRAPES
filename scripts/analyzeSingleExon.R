@@ -46,7 +46,8 @@ lower_dup_cutoff <- args$lower_dup_cutoff
 output_dir <- args$output_dir
 output_dir <- normalizePath(output_dir)
 
-raw_calls_df <- read.table(raw_calls, sep="\t", header=F, fill=T, check.names=FALSE)
+
+raw_calls_df <- tryCatch(read.table(raw_calls, sep="\t", header=F, fill=T, check.names=FALSE))
 coverage_data_df <- read.table(coverage_data, sep="\t", header=T, check.names=FALSE)
 references_df <- read.table(references, sep="\t", header=F, fill=T, check.names=FALSE)
 references_df <- references_df[-1,]

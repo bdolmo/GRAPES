@@ -47,11 +47,7 @@ sub exportCnvXLS  {
 
         #Skip VCF header
         next if $line=~/^#/;
-        $seenEntry{$line}++;
-        next if $seenEntry{$line} > 1;
         my @tmp = split("\t", $line);
-        $row++;
-
         my $chr = $tmp[0];
         my $pos = $tmp[1];
 
@@ -59,6 +55,10 @@ sub exportCnvXLS  {
         my ($end) = grep($_=~/^END=/, @info);
         $end =~s/END=//;
         $end = "." if !$end;
+
+        my $id = $chr . $pos . $end . $sample;
+        $seenEntry{$id}++;
+        next if $seenEntry{$id} > 1;
 
         my ($svtype) = grep($_=~/^SVTYPE=/, @info);
         $svtype =~s/SVTYPE=//;
@@ -99,6 +99,7 @@ sub exportCnvXLS  {
         my ($score) = grep($_=~/^CONF_SCORE=/, @info);
         $score =~s/CONF_SCORE=//;
         $score = "." if !$score;
+        $row++;
 
         $worksheet->write( $row, 0, $chr);
         $worksheet->write( $row, 1, $pos);
@@ -231,7 +232,6 @@ sub writeRoiQC {
     }
     $workbook->close();
 }
-
 
 ###############################
 sub writeSampleQC {

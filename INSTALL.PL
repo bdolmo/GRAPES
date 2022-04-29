@@ -39,10 +39,6 @@ if (!-e "$currentDir/db/sqlite") {
   mkdir "$currentDir/db/sqlite";
 }
 
-# if (!-e "$currentDir/db/gencode.v27") {
-#   mkdir "$currentDir/db/gencode.v27";
-# }
-
 my $cut  = `which cut`;
 chomp $cut;
 if (!$cut) {
@@ -193,17 +189,17 @@ if (!$macs2) {
 
   if ($program eq "1_SEQLIB") {
 
-	my $cmd = "make clean";
-	system $cmd;
+		my $cmd = "make clean";
+		system $cmd;
 
-	$cmd = "./configure";
-	system $cmd;
+		$cmd = "./configure";
+		system $cmd;
 
-	$cmd = "make CXXFLAGS=\"-std=c++11\"";
-	system $cmd;
+		$cmd = "make CXXFLAGS=\"-std=c++11\"";
+		system $cmd;
 
-	$cmd = "make install";
-	system $cmd;
+		$cmd = "make install";
+		system $cmd;
   }
   else {
 	  my $cmd = "make clean";
@@ -245,7 +241,6 @@ if (!$macs2) {
  : die " ERROR: AnnFeat cannot be executed\n";
 
  #Downloading mappability tracks
-
  if ( !-e "$currentDir/mappability/GRCh38.mappability.100mer.bedGraph.gz" ) {
 	    my $name = "GRCh38.mappability.100mer.bedGraph.gz?dl=0";
 	    my $new_name = "GRCh38.mappability.100mer.bedGraph.gz";
@@ -254,14 +249,6 @@ if (!$macs2) {
 	   # rename "$currentDir/$name", "$currentDir/$new_name";
  }
 
- # if ( !-e "$currentDir/mappability/GRCh38.mappability.100mer.bedGraph.tar.gz" ) {
-	#     my $name = "GRCh38.mappability.100mer.bedGraph.tar.gz?dl=0";
-	#     my $new_name = "GRCh38.mappability.100mer.bedGraph.tar.gz";
-	#     print " INFO: Downloading GRCh38.mappability.100mer.bedGraph.tar.gz\n";
-	#      `wget https://www.dropbox.com/s/14fn751kd7tzzue/GRCh38.mappability.100mer.bedGraph.tar.gz?dl=0 -O $currentDir/mappability/$new_name`;
-	#   #  rename "$currentDir/$name", "$currentDir/$new_name";
- # }
-
  if ( !-e "$currentDir/mappability/wgEncodeCrgMapabilityAlign100mer.chr.bedgraph.gz" ) {
 	    my $name = "wgEncodeCrgMapabilityAlign100mer.chr.bedgraph.gz?dl=0";
 	    my $new_name = "wgEncodeCrgMapabilityAlign100mer.chr.bedgraph.gz";
@@ -269,14 +256,6 @@ if (!$macs2) {
 	    `wget https://www.dropbox.com/s/hjf0a9ga8je6ndz/wgEncodeCrgMapabilityAlign100mer.chr.bedgraph.gz?dl=0 -O $currentDir/mappability/$new_name`;
 	   # rename "$currentDir/$name", "$currentDir/$new_name";
  }
-
- # if ( !-e "$currentDir/mappability/wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz" ) {
-	#     my $name = "wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz?dl=0";
-	#     my $new_name = "wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz";
-	#     print " INFO: Downloading wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz\n";
-	# 	`wget https://www.dropbox.com/s/e1mtadamo1jr7um/wgEncodeCrgMapabilityAlign100mer.nochr.bedgraph.gz?dl=0 -O $currentDir/mappability/$new_name`;
-	#     #rename "$currentDir/$name", "$currentDir/$new_name";
- # }
 
 if ( !-e "$currentDir/db/gnomad/gnomad_v2.1_sv.sites.vcf.gz" ) {
 	    my $name = "gnomad_v2.1_sv.sites.vcf.gz";

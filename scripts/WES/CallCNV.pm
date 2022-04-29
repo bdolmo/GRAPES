@@ -49,7 +49,6 @@ use File::Copy;
   	callMultipleExonCNV($inputDir, $analysis, $type, $bedfile, $ratioFile);
   }
 
-
   dumpFinalCalls($inputDir);
 
   print " INFO: Adding confidence scores\n";
@@ -74,7 +73,8 @@ sub scoreCNV {
 		my $finalCalls  = "$outputDir/$sample.CNV.bed";
 		my $scoredCalls = "$outputDir/$sample.CNV.score.bed";
 
-		if (-e $finalCalls) {
+    next if !-e $finalCalls;
+		# if (-e $finalCalls) {
 
 			my $corr     = $::sampleHash{$sample}{CORRELATION};
 			my $nCalls   = `$::cat $finalCalls | $::wc -l`;
@@ -117,11 +117,13 @@ sub scoreCNV {
 				else {
 					# Single exon CNV
 					if ($regions == 1){
-						$score = scoreSingleExon($svtype, $nCalls, $ratioStd, $pctCalls, $corr, $ratio, $s2n, $s2nc, $cn);
+						$score = scoreSingleExon($svtype, $nCalls, $ratioStd, $pctCalls,
+              $corr, $ratio, $s2n, $s2nc, $cn, $regions);
 					}
 					# Multiple exon CNV
 					else {
-						$score = scoreMultipleExon($svtype, $nCalls, $ratioStd, $pctCalls, $corr, $ratio, $s2n, $s2nc, $cn);
+						$score = scoreMultipleExon($svtype, $nCalls, $ratioStd, $pctCalls,
+              $corr, $ratio, $s2n, $s2nc, $cn, $regions);
 					}
 				}
 				print OUT "$line;CONF_SCORE=$score\n";
@@ -130,7 +132,7 @@ sub scoreCNV {
 			close OUT;
 			unlink $finalCalls;
 			rename $scoredCalls, $finalCalls;
-		}
+		# }
 	}
 }
 
@@ -138,7 +140,7 @@ sub scoreCNV {
 sub scoreSingleExon {
 
 	my $svtype   = shift;
-	my $nRois    = shift;
+	my $nCalls   = shift;
 	my $sampleStd= shift;
 	my $pctCalls = shift;
 	my $corr     = shift;
@@ -146,6 +148,7 @@ sub scoreSingleExon {
 	my $s2n      = shift;
 	my $s2nc     = shift;
 	my $cn       = shift;
+  my $nRois    = shift;
 
 	# Sample Level Metrics
 	my $stdMetric      = $sampleStd < 0.2 ? 1 : 0;
@@ -177,7 +180,7 @@ sub scoreSingleExon {
 sub scoreMultipleExon {
 
 	my $svtype   = shift;
-	my $nRois    = shift;
+	my $nCalls   = shift;
 	my $sampleStd= shift;
 	my $pctCalls = shift;
 	my $corr     = shift;
@@ -185,6 +188,7 @@ sub scoreMultipleExon {
 	my $s2n      = shift;
 	my $s2nc     = shift;
 	my $cn       = shift;
+  my $nRois   = shift;
 
 	# Sample Level Metrics
 	my $stdMetric      = $sampleStd < 0.2 ? 1 : 0;
@@ -193,6 +197,7 @@ sub scoreMultipleExon {
 	my $SLM = 0.45*$stdMetric + 0.45*$pctCallsMetric + 0.1*$corrMetric;
 
 	# Roi LeveL Metrics
+  # Difference between observed ratio and expected ratio
 	my $expectedRatio = 0.5*$cn;
 	my $absDiffRatio  = 0;
 	if ($ratio > $expectedRatio) {
@@ -201,26 +206,31 @@ sub scoreMultipleExon {
 	else {
 		$absDiffRatio =2.5*(abs($expectedRatio-$ratio));
 	}
-	my $nRoisMetric   = $nRois > 1 ? 1 : 0;
 	my $absDiffMetric = 1-$absDiffRatio > 0 ? 1-$absDiffRatio : 0;
-	my $signal2noiseMetric = $s2n > 10 ? 1 : 0;
-	my $signal2noiseControlsMetric;
 
+  # Signal to noise
+	my $signal2noiseMetric = $s2n > 10 ? 1 : 0; # For the analyzed sample
+	my $signal2noiseControlsMetric; # For the controls
 	if ($s2nc eq '.'){
 		$signal2noiseControlsMetric = 0;
 	}
 	else{
 		$signal2noiseControlsMetric = $s2nc > 10 ? 1 : 0;
 	}
-	my $nRoiWeight   = 0.2+($nRois*(0.05));
+
+  # Nbmber of targets
+  my $nRoisMetric   = $nRois > 1 ? 1 : 0;
+	my $nRoiWeight   = 0.2+($nRois*(0.1));
 	my $signalWeight = 1-$nRoiWeight;
 
 	my $RLM = ($nRoiWeight*$nRoisMetric) + ($signalWeight*0.70*$absDiffMetric)
     + ($signalWeight*0.15*$signal2noiseMetric) + ($signalWeight*0.15*$signal2noiseControlsMetric);
+
 	$RLM = 1 if $RLM > 1;
 
 	# Score = SLM + RLM
 	my $score = 0.4*$SLM + 0.6*$RLM;
+
   return $score;
 
 }
@@ -425,7 +435,6 @@ sub getAffectedROIs {
 	}
 
   print " INFO: Calling multi-exon CNVs\n";
-
 	# Get segmented CNVs (multi-exon)
   foreach my $file (@segmentedFiles) {
 
@@ -576,10 +585,10 @@ sub getAffectedROIs {
 				my $nexons  = scalar @targets;
 
 				# Define CNV type by hard thresholds
-				my $cnvType  = $tmpLine[12] > 0.71 ? 'DUP' : 'DEL';
+				my $cnvType  = $tmpLine[12] > $::upperDelCutoff ? 'DUP' : 'DEL';
 
 				# Assigning integer copy number
-				my $copyNumber = int ($tmpLine[12]*2+0.5);
+				my $copyNumber = int (($tmpLine[12]*2)+0.5);
 
 				my @ArrGC = ();
 				my @ArrMAP= ();
@@ -861,7 +870,7 @@ sub getAffectedROIs {
   		my $s2nTest         = $tmp[6];
   		my $s2nControls     = $tmp[7];
   		my $zscore          = $tmp[8];
-      my $copyNumber      = int ($testSampleRatio*2+0.5);
+      my $copyNumber      = int (($testSampleRatio)*2+0.5);
 
       my %InfoFields = (
         CIPOS  => $cipos,
