@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y \
     gfortran \
     git \
     make \
-    zlib1g-dev \
+    make \
+    zlib1g \
     libncurses5-dev \
     libncursesw5-dev \
     libboost-program-options-dev \
@@ -20,6 +21,7 @@ RUN apt-get update && apt-get install -y \
     libboost-all-dev \
     libbz2-dev \
     liblzma-dev \
+    libcurl4-openssl-dev \
     python3-pip \
     python-pip \
     cpanminus \
@@ -62,7 +64,6 @@ RUN apt-get -y install macs
 RUN R -e "install.packages('BiocManager',dependencies=TRUE, repos='http://cran.rstudio.com/')"
 RUN Rscript -e 'BiocManager::install("DNAcopy")'
 RUN Rscript -e 'BiocManager::install("aroma.light")'
-RUN Rscript -e 'BiocManager::install("GenomicRanges")'
 RUN R -e "install.packages('argparse',dependencies=TRUE, repos='http://cran.rstudio.com/')"
 RUN R -e "install.packages('gridExtra',dependencies=TRUE, repos='http://cran.rstudio.com/')"
 RUN R -e "install.packages('ggplot2',dependencies=TRUE, repos='http://cran.rstudio.com/')"
@@ -70,6 +71,11 @@ RUN R -e "install.packages('RColorBrewer',dependencies=TRUE, repos='http://cran.
 RUN R -e "install.packages('reshape2',dependencies=TRUE, repos='http://cran.rstudio.com/')"
 RUN R -e "install.packages('egg',dependencies=TRUE, repos='http://cran.rstudio.com/')"
 RUN R -e "install.packages('PSCBS',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('tydir',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('data.table',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('dplyr',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('GenomicRanges',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN Rscript -e 'BiocManager::install("GenomicRanges")'
 
 RUN cd /opt \
     && git clone https://github.com/arq5x/bedtools2.git \

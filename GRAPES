@@ -95,7 +95,7 @@ our $normalizedDir;
 our $plotClusters = "";
 
 my $cmd;
-our $versionNumber = "0.9.5";
+our $versionNumber = "0.9.6";
 my $startTime = time;
 
 our $targetDepth = "$dirname/bin/TargetDepth/targetDepth.pl";

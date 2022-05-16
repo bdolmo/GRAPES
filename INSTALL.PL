@@ -260,8 +260,8 @@ if (!$macs2) {
 if ( !-e "$currentDir/db/gnomad/gnomad_v2.1_sv.sites.vcf.gz" ) {
 	    my $name = "gnomad_v2.1_sv.sites.vcf.gz";
 	    print " INFO: Downloading $name\n";
-		  `wget https://storage.googleapis.com/gnomad-public/papers/2019-sv/gnomad_v2.1_sv.sites.vcf.gz -O $currentDir/db/gnomad/$name`;
-		  `wget https://storage.googleapis.com/gnomad-public/papers/2019-sv/gnomad_v2.1_sv.sites.vcf.gz.tbi -O $currentDir/db/gnomad/$name.tbi`;
+		  `wget https://storage.googleapis.com/gcp-public-data--gnomad/papers/2019-sv/gnomad_v2.1_sv.controls_only.sites.vcf.gz -O $currentDir/db/gnomad/$name`;
+		  `wget https://storage.googleapis.com/gcp-public-data--gnomad/papers/2019-sv/gnomad_v2.1_sv.controls_only.sites.vcf.gz.tbi -O $currentDir/db/gnomad/$name.tbi`;
 	    #rename "$currentDir/$name", "$currentDir/$new_name";
  }
 
