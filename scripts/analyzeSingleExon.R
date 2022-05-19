@@ -1,11 +1,4 @@
 #!/usr/bin/env Rscript
-#library(tidyr)
-#library(dplyr)
-#library(argparse)
-#library(GenomicRanges)
-#library(reshape2)
-#library(ggplot2)
-#library(data.table)
 
 suppressPackageStartupMessages({
     library(tidyr)
@@ -16,7 +9,6 @@ suppressPackageStartupMessages({
     library(data.table)
     library(ggplot2)
 })
-
 
 parser<-ArgumentParser(description="Analyze single-exon CNV")
 
@@ -45,7 +37,6 @@ lower_dup_cutoff <- args$lower_dup_cutoff
 
 output_dir <- args$output_dir
 output_dir <- normalizePath(output_dir)
-
 
 raw_calls_df <- tryCatch(read.table(raw_calls, sep="\t", header=F, fill=T, check.names=FALSE))
 coverage_data_df <- read.table(coverage_data, sep="\t", header=T, check.names=FALSE)
@@ -164,13 +155,6 @@ for (row in 1:nrow(raw_calls_df)){
     sample_name<- raw_calls_df[row,9]
     #chr1	237758797	237758957	NM_001035_33_34;RYR2	53.416149	100	0.688	7.11	RB27582_9999999.rmdup
 
-    print(sample_name)
-    print(exon)
-    print(chromosome)
-    print(start)
-    print(end)
-
-    #cat(" INFO: ", sample_name, exon, chromosome, start, end, "\n")
 
     q = GRanges(seqnames=chromosome, ranges=IRanges(start=start, end=end))
     results<-subsetByOverlaps(gr_obj , q)
@@ -186,8 +170,11 @@ for (row in 1:nrow(raw_calls_df)){
     control_samples <- setdiff(samples, vec_case_sample)
 
     cat("\n")
+    cat("Vec_case_sample:")
     print(vec_case_sample)
+    cat("\nsample_name:")
     print(sample_name)
+    cat("\ncontrol_samples:")
     print(control_samples)
     cat("\n")
 
