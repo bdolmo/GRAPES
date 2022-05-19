@@ -161,12 +161,13 @@ for (row in 1:nrow(raw_calls_df)){
     gr_df <- as.data.frame(results, check.names=FALSE, header=TRUE)
     #attach(gr_df)
     names(gr_df)<- c("chr", "start", "end" , "width", "strand", "exon", "X.GC", samples)
+    print(names(gr_df))
 
     # Get the case sample
     #vec_case_sample <- c(sample_name)
     vec_case_sample <- c()
     vec_case_sample <- append(vec_case_sample, sample_name)
-    cat(vec_case_sample"\n")
+    cat(vec_case_sample)
     print(vec_case_sample)
 
     # Get the control samples for baseline calculation
