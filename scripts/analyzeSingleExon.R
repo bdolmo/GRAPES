@@ -154,7 +154,8 @@ for (row in 1:nrow(raw_calls_df)){
     exon       <- raw_calls_df[row,4]
     sample_name<- raw_calls_df[row,9]
     sample_name <- sample_name[[1]]
-    sample_initial_name <- sample_name
+    sample_initial_name <- as.character(sample_name)
+    cat("\n")
     cat("Inici")
     print(sample_name)
     cat(sample_name)
