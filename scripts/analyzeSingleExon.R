@@ -166,6 +166,8 @@ for (row in 1:nrow(raw_calls_df)){
     #vec_case_sample <- c(sample_name)
     vec_case_sample <- c()
     vec_case_sample <- append(vec_case_sample, sample_name)
+    cat(vec_case_sample"\n")
+    print(vec_case_sample)
 
     # Get the control samples for baseline calculation
     control_samples <- setdiff(samples, vec_case_sample)
