@@ -166,6 +166,12 @@ for (row in 1:nrow(raw_calls_df)){
     sample_name<- raw_calls_df[row,9]
     #chr1	237758797	237758957	NM_001035_33_34;RYR2	53.416149	100	0.688	7.11	RB27582_9999999.rmdup
 
+    print(sample_name)
+    print(exon)
+    print(chromosome)
+    print(start)
+    print(end)
+
     q = GRanges(seqnames=chromosome, ranges=IRanges(start=start, end=end))
     results<-subsetByOverlaps(gr_obj , q)
     gr_df <- as.data.frame(results, check.names=FALSE, header=TRUE)
