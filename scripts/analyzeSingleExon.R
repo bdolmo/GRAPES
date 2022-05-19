@@ -158,7 +158,7 @@ plotSingleExon<-function(df, old_sample_name, sample_name, exon, output_dir) {
 print(raw_calls_df)
 
 for (row in 1:nrow(raw_calls_df)){
-
+    print(raw_calls_df[row,])
     chromosome <- raw_calls_df[row,1]
     start      <- raw_calls_df[row,2]
     end        <- raw_calls_df[row,3]
