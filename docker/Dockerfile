@@ -71,7 +71,7 @@ RUN R -e "install.packages('RColorBrewer',dependencies=TRUE, repos='http://cran.
 RUN R -e "install.packages('reshape2',dependencies=TRUE, repos='http://cran.rstudio.com/')"
 RUN R -e "install.packages('egg',dependencies=TRUE, repos='http://cran.rstudio.com/')"
 RUN R -e "install.packages('PSCBS',dependencies=TRUE, repos='http://cran.rstudio.com/')"
-RUN R -e "install.packages('tydir',dependencies=TRUE, repos='http://cran.rstudio.com/')"
+RUN R -e "install.packages('tidyr',dependencies=TRUE, repos='http://cran.rstudio.com/')"
 RUN R -e "install.packages('data.table',dependencies=TRUE, repos='http://cran.rstudio.com/')"
 RUN R -e "install.packages('dplyr',dependencies=TRUE, repos='http://cran.rstudio.com/')"
 RUN R -e "install.packages('GenomicRanges',dependencies=TRUE, repos='http://cran.rstudio.com/')"
@@ -89,7 +89,7 @@ RUN cd /opt \
     && git clone https://github.com/bdolmo/GRAPES.git \
     && cd /opt/GRAPES/ \
     && perl INSTALL.PL \
-    && echo "finished" && echo "done" && echo "redone111"
+    && echo "finished" && echo "done" && echo "redone333"
 
 # Workdir
 WORKDIR /root/

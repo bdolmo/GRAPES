@@ -342,15 +342,15 @@ print(\"Installing corrplot:\n\"); install.packages(\"corrplot\", repos = \"http
 print(\"INFO: corrplot is already installed\n\")
 }\n";
 
-print R "if (!is.installed(\"tydir\")){
-print(\"Installing tydir:\n\"); install.packages(\"tydir\", repos = \"http://cran.us.r-project.org\")
+print R "if (!is.installed(\"tidyr\")){
+print(\"Installing tidyr:\n\"); install.packages(\"tidyr\", repos = \"http://cran.us.r-project.org\")
 }";
 print R "else {
-print(\"INFO: tydir is already installed\n\")
+print(\"INFO: tidyr is already installed\n\")
 }\n";
 
 print R "if (!is.installed(\"data.table\")){
-print(\"Installing tydir:\n\"); install.packages(\"data.table\", repos = \"http://cran.us.r-project.org\")
+print(\"Installing data.table:\n\"); install.packages(\"data.table\", repos = \"http://cran.us.r-project.org\")
 }";
 print R "else {
 print(\"INFO: data.table is already installed\n\")
