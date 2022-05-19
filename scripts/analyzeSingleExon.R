@@ -153,6 +153,11 @@ for (row in 1:nrow(raw_calls_df)){
     end        <- raw_calls_df[row,3]
     exon       <- raw_calls_df[row,4]
     sample_name<- raw_calls_df[row,9]
+    sample_name <- sample_name[[1]]
+    cat("Inici")
+    print(sample_name)
+    cat(sample_name)
+
     #chr1	237758797	237758957	NM_001035_33_34;RYR2	53.416149	100	0.688	7.11	RB27582_9999999.rmdup
 
 
