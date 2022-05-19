@@ -169,19 +169,23 @@ for (row in 1:nrow(raw_calls_df)){
     # Get the control samples for baseline calculation
     control_samples <- setdiff(samples, vec_case_sample)
 
-    cat("\n")
-    cat("Vec_case_sample:")
-    print(vec_case_sample)
-    cat("\nsample_name:")
-    print(sample_name)
-    cat("\ncontrol_samples:")
-    print(control_samples)
-    cat("\n")
 
     output_list <- list()
     ratio_data_case <- c()
     ratio_data_controls <- c()
     refs_case <- reference_dict[[sample_name]]
+
+    cat("\n")
+    cat("Vec_case_sample:")
+    print(vec_case_sample)
+    cat("sample_name:")
+    print(sample_name)
+    cat("control_samples:")
+    print(control_samples)
+    cat("refs_case:")
+    print(refs_case)
+    cat("\n")
+
 
     sample_header <- c(vec_case_sample, refs_case)
 
