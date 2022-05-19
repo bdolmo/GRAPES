@@ -155,8 +155,7 @@ plotSingleExon<-function(df, old_sample_name, sample_name, exon, output_dir) {
     dev.off()
 }
 
-cat(raw_calls_df, "\n")
-
+print(raw_calls_df)
 
 for (row in 1:nrow(raw_calls_df)){
 
@@ -165,10 +164,7 @@ for (row in 1:nrow(raw_calls_df)){
     end        <- raw_calls_df[row,3]
     exon       <- raw_calls_df[row,4]
     sample_name<- raw_calls_df[row,9]
-
-
     #chr1	237758797	237758957	NM_001035_33_34;RYR2	53.416149	100	0.688	7.11	RB27582_9999999.rmdup
-
 
     q = GRanges(seqnames=chromosome, ranges=IRanges(start=start, end=end))
     results<-subsetByOverlaps(gr_obj , q)
