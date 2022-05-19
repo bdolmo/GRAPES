@@ -171,7 +171,7 @@ for (row in 1:nrow(raw_calls_df)){
     results<-subsetByOverlaps(gr_obj , q)
     gr_df <- as.data.frame(results, check.names=FALSE, header=TRUE)
     #attach(gr_df)
-    #print(sample_name)
+    cat(sample_name, "\n")
     names(gr_df)<- c("chr", "start", "end" , "width", "strand", "exon", "X.GC", samples)
 
     # Get the case sample

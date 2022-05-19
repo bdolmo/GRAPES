@@ -821,6 +821,7 @@ sub getAffectedROIs {
   " --upper_del_cutoff $::upperDelCutoff " .
   " --lower_dup_cutoff $::lowerDupCutoff " .
   " --output_dir $outputDir ";
+  print " INFO: $cmd\n";
   system($cmd);
 
   my @tmpRdata = glob("$outputDir/*single.exon.cnv.bed");

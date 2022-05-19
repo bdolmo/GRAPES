@@ -83,11 +83,13 @@ RUN cd /opt \
     && make \
     && make install
 
-#install GRAPES
+
+#install GRAPES latest version
 RUN cd /opt \
     && git clone https://github.com/bdolmo/GRAPES.git \
     && cd /opt/GRAPES/ \
-    && perl INSTALL.PL
+    && perl INSTALL.PL \
+    && echo "done"
 
 # Workdir
 WORKDIR /root/
