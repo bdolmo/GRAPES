@@ -155,6 +155,9 @@ plotSingleExon<-function(df, old_sample_name, sample_name, exon, output_dir) {
     dev.off()
 }
 
+cat(raw_calls_df, "\n")
+
+
 for (row in 1:nrow(raw_calls_df)){
 
     chromosome <- raw_calls_df[row,1]
