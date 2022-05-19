@@ -89,7 +89,7 @@ RUN cd /opt \
     && git clone https://github.com/bdolmo/GRAPES.git \
     && cd /opt/GRAPES/ \
     && perl INSTALL.PL \
-    && echo "finished" && echo "done" && echo "redone3"
+    && echo "finished" && echo "done" && echo "redone4"
 
 # Workdir
 WORKDIR /root/

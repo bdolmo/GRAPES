@@ -155,8 +155,6 @@ plotSingleExon<-function(df, old_sample_name, sample_name, exon, output_dir) {
     dev.off()
 }
 
-print(raw_calls_df)
-
 for (row in 1:nrow(raw_calls_df)){
     print(raw_calls_df[row,])
     chromosome <- raw_calls_df[row,1]
@@ -172,10 +170,15 @@ for (row in 1:nrow(raw_calls_df)){
     print(start)
     print(end)
 
+    cat(" INFO: ", sample_name, exon, chromosome, start, end, "\n")
+
+
     q = GRanges(seqnames=chromosome, ranges=IRanges(start=start, end=end))
     results<-subsetByOverlaps(gr_obj , q)
     gr_df <- as.data.frame(results, check.names=FALSE, header=TRUE)
     #attach(gr_df)
+
+    #print(summary(gr_df))
     cat(sample_name, "\n")
     names(gr_df)<- c("chr", "start", "end" , "width", "strand", "exon", "X.GC", samples)
 
@@ -196,6 +199,7 @@ for (row in 1:nrow(raw_calls_df)){
     sample_header <- c(vec_case_sample, refs_case)
 
     for (i in 1:nrow(gr_df)){
+        print(gr_df[i,])
 
         # Case ratio
         cov_case <- as.numeric(gr_df[i, sample_name])
