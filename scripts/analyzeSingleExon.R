@@ -182,13 +182,14 @@ for (row in 1:nrow(raw_calls_df)){
     case_sample <- gr_df$sample_name
     vec_case_sample <- c(sample_name)
 
-    cat("Case sample:\n")
-    print(case_sample)
-    cat("\n")
-
-
     # Get the control samples for baseline calculation
     control_samples <- setdiff(samples, vec_case_sample)
+
+    cat("\n")
+    print(vec_case_sample)
+    print(sample_name)
+    print(control_samples)
+    cat("\n")
 
     output_list <- list()
     ratio_data_case <- c()
