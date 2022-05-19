@@ -154,6 +154,7 @@ for (row in 1:nrow(raw_calls_df)){
     exon       <- raw_calls_df[row,4]
     sample_name<- raw_calls_df[row,9]
     sample_name <- sample_name[[1]]
+    sample_initial_name <- sample_name
     cat("Inici")
     print(sample_name)
     cat(sample_name)
@@ -169,9 +170,8 @@ for (row in 1:nrow(raw_calls_df)){
     print(names(gr_df))
 
     # Get the case sample
-    #vec_case_sample <- c(sample_name)
     vec_case_sample <- c()
-    vec_case_sample <- append(vec_case_sample, sample_name)
+    vec_case_sample <- append(vec_case_sample, sample_initial_name)
     cat(vec_case_sample)
     print(vec_case_sample)
 
@@ -182,13 +182,13 @@ for (row in 1:nrow(raw_calls_df)){
     output_list <- list()
     ratio_data_case <- c()
     ratio_data_controls <- c()
-    refs_case <- reference_dict[[sample_name]]
+    refs_case <- reference_dict[[sample_initial_name]]
 
     cat("\n")
     cat("Vec_case_sample:")
     print(vec_case_sample)
-    cat("sample_name:")
-    print(sample_name)
+    cat("sample_initial_name:")
+    print(sample_initial_name)
     cat("control_samples:")
     print(control_samples)
     cat("refs_case:")
@@ -200,7 +200,7 @@ for (row in 1:nrow(raw_calls_df)){
 
     for (i in 1:nrow(gr_df)){
         # Case ratio
-        cov_case <- as.numeric(gr_df[i, sample_name])
+        cov_case <- as.numeric(gr_df[i, sample_initial_name])
         cov_controls <- as.numeric(gr_df[i, refs_case])
         median_controls <- as.numeric(median(na.omit(cov_controls)))
         ratio_case <- 0
@@ -237,7 +237,7 @@ for (row in 1:nrow(raw_calls_df)){
 
     zscore_case <- round(zscore(ratio_data_controls, median_ratio_case), 3)
 
-    cat(" INFO: ", sample_name, " Roi=", exon, " z-score=", zscore_case, " case_ratio=", median_ratio_case, " control_ratio=", median_ratio_controls, "\n")
+    cat(" INFO: ", sample_initial_name, " Roi=", exon, " z-score=", zscore_case, " case_ratio=", median_ratio_case, " control_ratio=", median_ratio_controls, "\n")
     if ( (signal_to_noise_controls > min_s2n) & (signal_to_noise_case > min_s2n) & (abs(zscore_case) > min_zscore) ){
 
         if(((median_ratio_case < upper_del_cutoff) & (median_ratio_case > lower_del_cutoff))|((median_ratio_case > lower_dup_cutoff))) {
