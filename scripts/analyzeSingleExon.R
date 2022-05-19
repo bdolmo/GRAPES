@@ -163,8 +163,9 @@ for (row in 1:nrow(raw_calls_df)){
     names(gr_df)<- c("chr", "start", "end" , "width", "strand", "exon", "X.GC", samples)
 
     # Get the case sample
-    case_sample <- gr_df$sample_name
-    vec_case_sample <- c(sample_name)
+    #vec_case_sample <- c(sample_name)
+    vec_case_sample <- c()
+    vec_case_sample <- append(vec_case_sample, sample_name)
 
     # Get the control samples for baseline calculation
     control_samples <- setdiff(samples, vec_case_sample)
