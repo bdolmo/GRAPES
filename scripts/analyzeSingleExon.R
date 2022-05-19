@@ -170,28 +170,27 @@ for (row in 1:nrow(raw_calls_df)){
     print(start)
     print(end)
 
-    cat(" INFO: ", sample_name, exon, chromosome, start, end, "\n")
-
+    #cat(" INFO: ", sample_name, exon, chromosome, start, end, "\n")
 
     q = GRanges(seqnames=chromosome, ranges=IRanges(start=start, end=end))
     results<-subsetByOverlaps(gr_obj , q)
     gr_df <- as.data.frame(results, check.names=FALSE, header=TRUE)
     #attach(gr_df)
-
-    #print(summary(gr_df))
-    cat(sample_name, "\n")
     names(gr_df)<- c("chr", "start", "end" , "width", "strand", "exon", "X.GC", samples)
 
     # Get the case sample
     case_sample <- gr_df$sample_name
-
     vec_case_sample <- c(sample_name)
+
+    cat("Case sample:\n")
+    print(case_sample)
+    cat("\n")
+
 
     # Get the control samples for baseline calculation
     control_samples <- setdiff(samples, vec_case_sample)
 
     output_list <- list()
-
     ratio_data_case <- c()
     ratio_data_controls <- c()
     refs_case <- reference_dict[[sample_name]]
@@ -199,8 +198,6 @@ for (row in 1:nrow(raw_calls_df)){
     sample_header <- c(vec_case_sample, refs_case)
 
     for (i in 1:nrow(gr_df)){
-        print(gr_df[i,])
-
         # Case ratio
         cov_case <- as.numeric(gr_df[i, sample_name])
         cov_controls <- as.numeric(gr_df[i, refs_case])
