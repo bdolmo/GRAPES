@@ -155,11 +155,6 @@ for (row in 1:nrow(raw_calls_df)){
     sample_name<- raw_calls_df[row,9]
     sample_name <- sample_name[[1]]
     sample_initial_name <- as.character(sample_name)
-    cat("\n")
-    cat("Inici")
-    print(sample_name)
-    cat(sample_name)
-
     #chr1	237758797	237758957	NM_001035_33_34;RYR2	53.416149	100	0.688	7.11	RB27582_9999999.rmdup
 
 
@@ -168,37 +163,19 @@ for (row in 1:nrow(raw_calls_df)){
     gr_df <- as.data.frame(results, check.names=FALSE, header=TRUE)
     #attach(gr_df)
     names(gr_df)<- c("chr", "start", "end" , "width", "strand", "exon", "X.GC", samples)
-    print(names(gr_df))
 
     # Get the case sample
     vec_case_sample <- c()
     vec_case_sample <- append(vec_case_sample, sample_initial_name)
-    cat(vec_case_sample)
-    print(vec_case_sample)
-
     # Get the control samples for baseline calculation
     control_samples <- setdiff(samples, vec_case_sample)
-
 
     output_list <- list()
     ratio_data_case <- c()
     ratio_data_controls <- c()
     refs_case <- reference_dict[[sample_initial_name]]
 
-    cat("\n")
-    cat("Vec_case_sample:")
-    print(vec_case_sample)
-    cat("sample_initial_name:")
-    print(sample_initial_name)
-    cat("control_samples:")
-    print(control_samples)
-    cat("refs_case:")
-    print(refs_case)
-    cat("\n")
-
-
     sample_header <- c(vec_case_sample, refs_case)
-
     for (i in 1:nrow(gr_df)){
         # Case ratio
         cov_case <- as.numeric(gr_df[i, sample_initial_name])
@@ -243,7 +220,7 @@ for (row in 1:nrow(raw_calls_df)){
 
         if(((median_ratio_case < upper_del_cutoff) & (median_ratio_case > lower_del_cutoff))|((median_ratio_case > lower_dup_cutoff))) {
 
-            out_file <- paste(output_dir, "/", sample_name, ".single.exon.cnv" , ".bed", sep="")
+            out_file <- paste(output_dir, "/", sample_initial_name, ".single.exon.cnv" , ".bed", sep="")
             out_df <- do.call("rbind",output_list)
             colnames(out_df) <- sample_header
 
@@ -255,12 +232,12 @@ for (row in 1:nrow(raw_calls_df)){
 
             # Add a new columns assigning class category
             out_df <- out_df %>%
-                mutate(Classe = if_else(out_df$Samples == sample_name, paste("2_", sample_name, sep=""), '1_Controls'))
+                mutate(Classe = if_else(out_df$Samples == sample_initial_name, paste("2_", sample_initial_name, sep=""), '1_Controls'))
 
-            new_sample_name <- paste("2_", sample_name, sep="")
+            new_sample_name <- paste("2_", sample_initial_name, sep="")
 
             # Plot single exon CNV
-            plotSingleExon(out_df, sample_name, new_sample_name, exon, output_dir)
+            plotSingleExon(out_df, sample_initial_name, sample_initial_name, exon, output_dir)
             svtype <- ""
             if (median_ratio_case < upper_del_cutoff) {
                 svtype <- "DEL"
