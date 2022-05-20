@@ -163,6 +163,7 @@ $contigLines
 ##INFO=<ID=SNRC,Number=1,Type=Float,Description=\"Signal to noise of the read depth ratios for all control samples\">
 ##INFO=<ID=ZSCORE,Number=1,Type=Float,Description=\"Number of std.devs the target is from the reference mean\">
 ##INFO=<ID=PRD,Number=1,Type=Integer,Description=\"Phred-scale p-value using Fisher's exact test on flanking read-depth\">
+##INFO=<ID=EV,Number=1,Type=String,Description=\"SV evidence type\">
 ##INFO=<ID=CN,Number=1,Type=Integer,Description=\"Copy number of segment with breakend support\">
 ##INFO=<ID=NSNV,Number=1,Type=Float,Description=\"Total SNVs found within the SV\">
 ##INFO=<ID=BAF,Number=1,Type=Float,Description=\"Mean B-allele frequency of the SNVs found within the SV\">
