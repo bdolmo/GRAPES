@@ -251,6 +251,7 @@ sub writeSampleQC {
        "Std Off-target Ratio",
        "N Calls",
        "N NoCalls",
+       "Correlation",
        "On-target Qual Pass",
        "Off-target Qual Pass");
 
@@ -271,6 +272,7 @@ sub writeSampleQC {
         push @data, $::sampleHash{$sample}{OFFTARGET_SD_RATIO} ? $::sampleHash{$sample}{OFFTARGET_SD_RATIO} : ".";
         push @data, $::sampleHash{$sample}{N_CALL};
         push @data, $::sampleHash{$sample}{N_NO_CALL};
+        push @data, $::sampleHash{$sample}{CORRELATION};
         push @data, $::sampleHash{$sample}{ONTARGET_QC_PASS} ? $::sampleHash{$sample}{ONTARGET_QC_PASS} : ".";
         push @data, $::sampleHash{$sample}{OFFTARGET_QC_PASS} ? $::sampleHash{$sample}{OFFTARGET_QC_PASS} : ".";
         print SAMPLE_QC join(",", @data ) . "\n";

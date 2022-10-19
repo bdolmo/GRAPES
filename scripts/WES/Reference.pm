@@ -75,7 +75,7 @@ sub createDB {
     }
     my $nFields = join (", ", @arrSearch);
 
-    $sql = "INSERT INTO ROI VALUES($nFields)";    
+    $sql = "INSERT INTO ROI VALUES($nFields)";
     $rv = $::dbh->prepare($sql);
 
     open (NC, "<", $normCounts) || die " ERROR: Unable to open $normCounts\n";
@@ -94,7 +94,7 @@ sub createDB {
 ######################
 sub exportDB {
 
-    open (OUTDB, ">", $::HoF{EXPORTED_DB}) 
+    open (OUTDB, ">", $::HoF{EXPORTED_DB})
     || die " ERROR: Unable to open $::HoF{EXPORTED_DB}\n";
 
     # Selecting header and exporting it
@@ -110,14 +110,13 @@ sub exportDB {
     }
     print OUTDB "\n";
 
-    # Exporting all body content 
+    # Exporting all body content
     $sth = $::dbh->prepare("SELECT * FROM ROI");
     $sth->execute();
     my $result = $sth->fetchall_arrayref;
 
     foreach my $row ( @$result ) {
         my $tmp = join("\t", @$row);
-        #my ($chr, $start, $end, $info) = split (/\t/, $tmp);
         print OUTDB "$tmp\n";
     }
     $sth->finish();
@@ -240,10 +239,10 @@ sub mergeRunWithDB {
     close OUT;
 }
 
-###################### 
+######################
 sub allocateFile {
 
-    # Goal is to read HoF{EXPORTED_DB} and HoF{NORM_COUNTS_ON} 
+    # Goal is to read HoF{EXPORTED_DB} and HoF{NORM_COUNTS_ON}
     # and return a hash reference to merge later
 
     my $inputFile = shift;
@@ -358,13 +357,13 @@ sub allocateFile {
 
 		push @{$::sampleHash{$sample1}{REFERENCE}}, $sampleCorr{$corr};
 		$sum+=$corr;
-		my $corrdecimal = sprintf "%.3f", ($corr); 
+		my $corrdecimal = sprintf "%.3f", ($corr);
 		push @cluster, "$sampleCorr{$corr}($corrdecimal)";
 	}
 	$sampleCount = 0;
 	my $reference;
 	if (@cluster == 0) {
-		$mean_corr = 1;	
+		$mean_corr = 1;
 		$reference = "none";
 		push @{$::sampleHash{$sample1}{REFERENCE}}, $reference;
 	}
@@ -408,18 +407,18 @@ sub allocateFile {
 
     if (!-e "$outputDir/$::outName.heatmap.png") {
         print R "png(\"$outputDir/$::outName.heatmap.png\", res = 300, height=2800, width=2800)\n";
-        
+
         # Adjusting margin size based on the longest label
         #https://stackoverflow.com/questions/38249567/r-figure-being-cropped
         print R "margin_width = max(strwidth(rownames(cor_corrected), units=\'inches\')) * par(\'fin\')[1]\n";
 
         # Defining a color pallete
-        print R "my_palette <- colorRampPalette(c(\"darkblue\", \"#196aff\",\"#6f6fff\", \"#327aff\", 
+        print R "my_palette <- colorRampPalette(c(\"darkblue\", \"#196aff\",\"#6f6fff\", \"#327aff\",
         \"white\", \"#ffdfc0\", \"#ffccb3\", \"#CC483A\", \"#790000\"))(n = 150)\n";
 
         # Creating heatmap
         print R "heatmap.2(x = cor_corrected,colsep=1:ncol(cor_corrected),
-        rowsep=1:nrow(cor_corrected), trace=\"none\", sepwidth=c(0.01, 0.01), sepcolor=\"white\", scale=\"none\", 
+        rowsep=1:nrow(cor_corrected), trace=\"none\", sepwidth=c(0.01, 0.01), sepcolor=\"white\", scale=\"none\",
         col = my_palette, symm = TRUE, margins=c(margin_width, margin_width))\n";
         print R "dev.off()\n";
     }
