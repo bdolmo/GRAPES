@@ -638,9 +638,9 @@ $minZscore  = 2.58 if !$minZscore;
  my $analysisMode = returnHybridCaptureType($bed);
  print " INFO: Mode: $analysisMode\n";
 
- ######################
- #	Fetching bams     #
- ######################
+ ###################
+ #	Fetching bams  #
+ ###################
 
  our @bams;
  our @controlBams;

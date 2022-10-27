@@ -197,8 +197,8 @@ sub mergeRunWithDB {
 
     my %HoS = (); # Hash of samples
 
-    my ($hrefNC, $sampRefNC) = allocateFile($::HoF{NORM_COUNTS_ON});
-    my ($hrefDB, $sampRefDB) = allocateFile($::HoF{EXPORTED_DB});
+    my ($hrefNC, $sampRefNC) = readNormalizedCounts($::HoF{NORM_COUNTS_ON});
+    my ($hrefDB, $sampRefDB) = readPanelDB($::HoF{EXPORTED_DB});
 
     # derreferencing sample arrays
     my @sampNC = @$sampRefNC;
@@ -223,14 +223,17 @@ sub mergeRunWithDB {
     foreach my $coordinate (natsort keys %HoNC ){
         print OUT "$coordinate";
 
+        my @tmp_coord = split("\t", $coordinate);
+        my $short_coord = join("\t", @tmp_coord[0..2]);
+
         # Dumping normalized coverage results
         foreach my $sample (natsort @samples) {
             if (exists $HoNC{$coordinate}{$sample}) {
                 print OUT "\t$HoNC{$coordinate}{$sample}";
                 next;
             }
-            elsif (exists $HoDB{$coordinate}{$sample}) {
-                print OUT "\t$HoDB{$coordinate}{$sample}";
+            if (exists $HoDB{$short_coord}{$sample}) {
+                print OUT "\t$HoDB{$short_coord}{$sample}";
                 next;
             }
         }
@@ -240,13 +243,12 @@ sub mergeRunWithDB {
 }
 
 ######################
-sub allocateFile {
+sub readNormalizedCounts {
 
     # Goal is to read HoF{EXPORTED_DB} and HoF{NORM_COUNTS_ON}
     # and return a hash reference to merge later
 
     my $inputFile = shift;
-
     my @fileArray = split ("\n", `$::zcat $inputFile`);
     my %hash = ();
     my $i = 0;
@@ -254,6 +256,7 @@ sub allocateFile {
     foreach my $line (@fileArray) {
         my @tmp = split ("\t", $line);
         my $coordinate = join ("\t", @tmp[0..5]);
+
         if ($i == 0) { # header
             for (my $i = 6; $i < @tmp; $i++) {
                 push @samples, $tmp[$i];
@@ -271,6 +274,40 @@ sub allocateFile {
 
     return \%hash, \@samples;
 }
+
+######################
+sub readPanelDB {
+
+    # Goal is to read HoF{EXPORTED_DB} and HoF{NORM_COUNTS_ON}
+    # and return a hash reference to merge later
+
+    my $inputFile = shift;
+    my @fileArray = split ("\n", `$::zcat $inputFile`);
+    my %hash = ();
+    my $i = 0;
+    my @samples = ();
+    foreach my $line (@fileArray) {
+        my @tmp = split ("\t", $line);
+        my $coordinate = join ("\t", @tmp[0..2]);
+
+        if ($i == 0) { # header
+            for (my $i = 6; $i < @tmp; $i++) {
+                push @samples, $tmp[$i];
+            }
+        }
+        else {
+            my $j = 0;
+            for (my $i= 6; $i < @tmp; $i++) {
+                $hash{$coordinate}{$samples[$j]} = $tmp[$i];
+                $j++;
+            }
+        }
+        $i++;
+    }
+
+    return \%hash, \@samples;
+}
+
 
 ########################
  sub clusterBatches {
