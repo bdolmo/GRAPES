@@ -1,11 +1,11 @@
 # What is GRAPES?
- GRAPES stands for "Genomic Rearrangement Analysis of Panel Enrichment Sequencing".
- It is yet another SV and CNV caller, but with new interesting features (Keep reading!)
+Integrated SV and CNV caller, but with new interesting features (Keep reading!)
 
 ## Features
-* SV and CNV calling for targeted sequencing: using data from on-target, off-target and breakpoint-informative reads.
+* SV and CNV calling for targeted sequencing (such as exomes/gene panels): using data from on-target, off-target and breakpoint-informative reads.
 * Clustering of samples with highly correlated read depth for improved CNV calling specificity.
 * Dynamic update of sample references using SQLite.
+* WGS analysis combining everything
 
 #### What's new in GRAPES 0.9.5 ? March-2021
 * New scoring metric to evaluate the confidence of each CNV.
